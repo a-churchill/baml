@@ -6559,9 +6559,7 @@ components:
       type: object
       properties:
         amount:
-          oneOf:
-          - type: integer
-          - type: number
+          type: number
         unit:
           type: string
       required:

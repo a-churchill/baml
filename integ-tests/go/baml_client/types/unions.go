@@ -1409,103 +1409,6 @@ func Union__int_1__bool_true__string_string_outputNewWithString_string_output(v 
 	}
 }
 
-type Union__int__float struct {
-	variant string
-
-	variant_int *int64
-
-	variant_float *float64
-}
-
-func (u *Union__int__float) Decode(holder *cffi.CFFIValueUnionVariant) {
-	valueHolder := holder.Value(nil)
-	switch string(holder.VariantName()) {
-
-	case "int":
-		u.variant = "int"
-		value := *baml.Decode(valueHolder).(*int64)
-		u.variant_int = &value
-
-	case "float":
-		u.variant = "float"
-		value := *baml.Decode(valueHolder).(*float64)
-		u.variant_float = &value
-
-	}
-}
-
-func (u Union__int__float) Encode(builder *flatbuffers.Builder) (cffi.CFFIValueUnion, flatbuffers.UOffsetT, error) {
-	switch u.variant {
-
-	case "int":
-		return baml.EncodeUnion(builder, "Union__int__float", u.variant, u.variant_int)
-
-	case "float":
-		return baml.EncodeUnion(builder, "Union__int__float", u.variant, u.variant_float)
-
-	case "":
-		return cffi.CFFIValueUnionNONE, 0, fmt.Errorf("invalid union variant: [unset]")
-	}
-
-	return cffi.CFFIValueUnionNONE, 0, fmt.Errorf("invalid union variant: %s", u.variant)
-}
-
-func (u Union__int__float) BamlTypeName() string {
-	return "Union__int__float"
-}
-
-func (u *Union__int__float) SetInt(v int64) {
-	u.variant = "int"
-	u.variant_int = &v
-
-	u.variant_float = nil
-
-}
-
-func (u *Union__int__float) IsInt() bool {
-	return u.variant == "int"
-}
-
-func (u *Union__int__float) Int() *int64 {
-	if !u.IsInt() {
-		return nil
-	}
-	return u.variant_int
-}
-
-func Union__int__floatNewWithInt(v *int64) *Union__int__float {
-	return &Union__int__float{
-		variant:     "int",
-		variant_int: v,
-	}
-}
-
-func (u *Union__int__float) SetFloat(v float64) {
-	u.variant = "float"
-	u.variant_float = &v
-
-	u.variant_int = nil
-
-}
-
-func (u *Union__int__float) IsFloat() bool {
-	return u.variant == "float"
-}
-
-func (u *Union__int__float) Float() *float64 {
-	if !u.IsFloat() {
-		return nil
-	}
-	return u.variant_float
-}
-
-func Union__int__floatNewWithFloat(v *float64) *Union__int__float {
-	return &Union__int__float{
-		variant:       "float",
-		variant_float: v,
-	}
-}
-
 type Union__int__string struct {
 	variant string
 
@@ -2126,7 +2029,7 @@ func (u *Union__int__string__bool__float__List__string__Map__string_List__string
 
 	case "Map__string_List__string":
 		u.variant = "Map__string_List__string"
-		value := *baml.Decode(valueHolder).(*map[string][]string)
+		value := baml.Decode(valueHolder).(map[string][]string)
 		u.variant_Map__string_List__string = &value
 
 	}
@@ -2486,7 +2389,7 @@ func (u *Union__string__Map__string_RecursiveUnion) Decode(holder *cffi.CFFIValu
 
 	case "Map__string_RecursiveUnion":
 		u.variant = "Map__string_RecursiveUnion"
-		value := *baml.Decode(valueHolder).(*map[string]RecursiveUnion)
+		value := baml.Decode(valueHolder).(map[string]RecursiveUnion)
 		u.variant_Map__string_RecursiveUnion = &value
 
 	}

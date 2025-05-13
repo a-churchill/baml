@@ -347,7 +347,7 @@ class PhoneNumber(BaseModel):
     value: Optional[str] = None
 
 class Quantity(BaseModel):
-    amount: Optional[Union[int, float]] = None
+    amount: float
     unit: Optional[str] = None
 
 class RaysData(BaseModel):

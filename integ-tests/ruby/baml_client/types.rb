@@ -1279,7 +1279,7 @@ module Baml
     end
     class Quantity < T::Struct
       include Baml::Sorbet::Struct
-      const :amount, T.any(Integer, Float)
+      const :amount, Float
       const :unit, T.nilable(String)
 
       def initialize(props)

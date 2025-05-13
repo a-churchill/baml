@@ -627,7 +627,7 @@ export interface PhoneNumber {
 }
 
 export interface Quantity {
-  amount: number | number
+  amount: number
   unit?: string | null
   
 }

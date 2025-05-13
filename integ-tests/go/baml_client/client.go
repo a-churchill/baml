@@ -15,6 +15,7 @@ import (
 	"os"
 	"strings"
 
+	"example.com/integ-tests/baml_client/stream_types"
 	"example.com/integ-tests/baml_client/types"
 	baml "github.com/boundaryml/baml/engine/language_client_go/pkg"
 )
@@ -27,7 +28,7 @@ func init() {
 		key, value, _ := strings.Cut(env_var, "=")
 		env_vars[key] = value
 	}
-	baml.SetTypeMap(typeMap)
+	baml.SetTypeMap(typeMap, streamTypeMap)
 	runtime, err := baml.CreateRuntime("./baml_src", getBamlFiles(), env_vars)
 	if err != nil {
 		panic(err)
@@ -45,6 +46,20 @@ func castOptional[T any](result any, castResult func(any) T) *T {
 	}
 	val := castResult(result)
 	return &val
+}
+
+type StreamValue[T any, U any] struct {
+	IsFinal   bool
+	as_final  *T
+	as_stream *U
+}
+
+func (s *StreamValue[T, U]) Final() T {
+	return *s.as_final
+}
+
+func (s *StreamValue[T, U]) Stream() U {
+	return *s.as_stream
 }
 
 func AaaSamOutputFormat(ctx context.Context, recipe string) (*types.Recipe, error) {
@@ -73,7 +88,7 @@ func AaaSamOutputFormat(ctx context.Context, recipe string) (*types.Recipe, erro
 	return &casted, nil
 }
 
-func (*stream) AaaSamOutputFormat(ctx context.Context, recipe string) <-chan types.Recipe {
+func (*stream) AaaSamOutputFormat(ctx context.Context, recipe string) <-chan StreamValue[types.Recipe, stream_types.Recipe] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"recipe": recipe},
 	}
@@ -81,7 +96,7 @@ func (*stream) AaaSamOutputFormat(ctx context.Context, recipe string) <-chan typ
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Recipe)
+	channel := make(chan StreamValue[types.Recipe, stream_types.Recipe])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "AaaSamOutputFormat", encoded)
 	if err != nil {
 		close(channel)
@@ -102,7 +117,20 @@ func (*stream) AaaSamOutputFormat(ctx context.Context, recipe string) <-chan typ
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Recipe)
+				if result.HasData {
+					data := (*result.Data).(types.Recipe)
+					channel <- StreamValue[types.Recipe, stream_types.Recipe]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.Recipe)
+					channel <- StreamValue[types.Recipe, stream_types.Recipe]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -135,7 +163,7 @@ func AliasThatPointsToRecursiveType(ctx context.Context, data types.LinkedListAl
 	return &casted, nil
 }
 
-func (*stream) AliasThatPointsToRecursiveType(ctx context.Context, data types.LinkedListAliasNode) <-chan types.LinkedListAliasNode {
+func (*stream) AliasThatPointsToRecursiveType(ctx context.Context, data types.LinkedListAliasNode) <-chan StreamValue[types.LinkedListAliasNode, stream_types.LinkedListAliasNode] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"data": data},
 	}
@@ -143,7 +171,7 @@ func (*stream) AliasThatPointsToRecursiveType(ctx context.Context, data types.Li
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.LinkedListAliasNode)
+	channel := make(chan StreamValue[types.LinkedListAliasNode, stream_types.LinkedListAliasNode])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "AliasThatPointsToRecursiveType", encoded)
 	if err != nil {
 		close(channel)
@@ -164,7 +192,20 @@ func (*stream) AliasThatPointsToRecursiveType(ctx context.Context, data types.Li
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.LinkedListAliasNode)
+				if result.HasData {
+					data := (*result.Data).(types.LinkedListAliasNode)
+					channel <- StreamValue[types.LinkedListAliasNode, stream_types.LinkedListAliasNode]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.LinkedListAliasNode)
+					channel <- StreamValue[types.LinkedListAliasNode, stream_types.LinkedListAliasNode]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -197,7 +238,7 @@ func AliasWithMultipleAttrs(ctx context.Context, money int64) (*types.Checked[in
 	return &casted, nil
 }
 
-func (*stream) AliasWithMultipleAttrs(ctx context.Context, money int64) <-chan types.Checked[int64] {
+func (*stream) AliasWithMultipleAttrs(ctx context.Context, money int64) <-chan StreamValue[types.Checked[int64], types.Checked[int64]] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"money": money},
 	}
@@ -205,7 +246,7 @@ func (*stream) AliasWithMultipleAttrs(ctx context.Context, money int64) <-chan t
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Checked[int64])
+	channel := make(chan StreamValue[types.Checked[int64], types.Checked[int64]])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "AliasWithMultipleAttrs", encoded)
 	if err != nil {
 		close(channel)
@@ -226,7 +267,20 @@ func (*stream) AliasWithMultipleAttrs(ctx context.Context, money int64) <-chan t
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Checked[int64])
+				if result.HasData {
+					data := (*result.Data).(types.Checked[int64])
+					channel <- StreamValue[types.Checked[int64], types.Checked[int64]]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.Checked[int64])
+					channel <- StreamValue[types.Checked[int64], types.Checked[int64]]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -259,7 +313,7 @@ func AliasedInputClass(ctx context.Context, input types.InputClass) (*string, er
 	return &casted, nil
 }
 
-func (*stream) AliasedInputClass(ctx context.Context, input types.InputClass) <-chan string {
+func (*stream) AliasedInputClass(ctx context.Context, input types.InputClass) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -267,7 +321,7 @@ func (*stream) AliasedInputClass(ctx context.Context, input types.InputClass) <-
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "AliasedInputClass", encoded)
 	if err != nil {
 		close(channel)
@@ -288,7 +342,20 @@ func (*stream) AliasedInputClass(ctx context.Context, input types.InputClass) <-
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -321,7 +388,7 @@ func AliasedInputClass2(ctx context.Context, input types.InputClass) (*string, e
 	return &casted, nil
 }
 
-func (*stream) AliasedInputClass2(ctx context.Context, input types.InputClass) <-chan string {
+func (*stream) AliasedInputClass2(ctx context.Context, input types.InputClass) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -329,7 +396,7 @@ func (*stream) AliasedInputClass2(ctx context.Context, input types.InputClass) <
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "AliasedInputClass2", encoded)
 	if err != nil {
 		close(channel)
@@ -350,7 +417,20 @@ func (*stream) AliasedInputClass2(ctx context.Context, input types.InputClass) <
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -383,7 +463,7 @@ func AliasedInputClassNested(ctx context.Context, input types.InputClassNested) 
 	return &casted, nil
 }
 
-func (*stream) AliasedInputClassNested(ctx context.Context, input types.InputClassNested) <-chan string {
+func (*stream) AliasedInputClassNested(ctx context.Context, input types.InputClassNested) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -391,7 +471,7 @@ func (*stream) AliasedInputClassNested(ctx context.Context, input types.InputCla
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "AliasedInputClassNested", encoded)
 	if err != nil {
 		close(channel)
@@ -412,7 +492,20 @@ func (*stream) AliasedInputClassNested(ctx context.Context, input types.InputCla
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -445,7 +538,7 @@ func AliasedInputEnum(ctx context.Context, input types.AliasedEnum) (*string, er
 	return &casted, nil
 }
 
-func (*stream) AliasedInputEnum(ctx context.Context, input types.AliasedEnum) <-chan string {
+func (*stream) AliasedInputEnum(ctx context.Context, input types.AliasedEnum) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -453,7 +546,7 @@ func (*stream) AliasedInputEnum(ctx context.Context, input types.AliasedEnum) <-
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "AliasedInputEnum", encoded)
 	if err != nil {
 		close(channel)
@@ -474,7 +567,20 @@ func (*stream) AliasedInputEnum(ctx context.Context, input types.AliasedEnum) <-
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -507,7 +613,7 @@ func AliasedInputList(ctx context.Context, input []types.AliasedEnum) (*string, 
 	return &casted, nil
 }
 
-func (*stream) AliasedInputList(ctx context.Context, input []types.AliasedEnum) <-chan string {
+func (*stream) AliasedInputList(ctx context.Context, input []types.AliasedEnum) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -515,7 +621,7 @@ func (*stream) AliasedInputList(ctx context.Context, input []types.AliasedEnum) 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "AliasedInputList", encoded)
 	if err != nil {
 		close(channel)
@@ -536,7 +642,20 @@ func (*stream) AliasedInputList(ctx context.Context, input []types.AliasedEnum) 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -569,7 +688,7 @@ func AllowedOptionals(ctx context.Context, optionals types.OptionalListAndMap) (
 	return &casted, nil
 }
 
-func (*stream) AllowedOptionals(ctx context.Context, optionals types.OptionalListAndMap) <-chan types.OptionalListAndMap {
+func (*stream) AllowedOptionals(ctx context.Context, optionals types.OptionalListAndMap) <-chan StreamValue[types.OptionalListAndMap, stream_types.OptionalListAndMap] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"optionals": optionals},
 	}
@@ -577,7 +696,7 @@ func (*stream) AllowedOptionals(ctx context.Context, optionals types.OptionalLis
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.OptionalListAndMap)
+	channel := make(chan StreamValue[types.OptionalListAndMap, stream_types.OptionalListAndMap])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "AllowedOptionals", encoded)
 	if err != nil {
 		close(channel)
@@ -598,7 +717,20 @@ func (*stream) AllowedOptionals(ctx context.Context, optionals types.OptionalLis
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.OptionalListAndMap)
+				if result.HasData {
+					data := (*result.Data).(types.OptionalListAndMap)
+					channel <- StreamValue[types.OptionalListAndMap, stream_types.OptionalListAndMap]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.OptionalListAndMap)
+					channel <- StreamValue[types.OptionalListAndMap, stream_types.OptionalListAndMap]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -631,7 +763,7 @@ func AssertFn(ctx context.Context, a int64) (*int64, error) {
 	return &casted, nil
 }
 
-func (*stream) AssertFn(ctx context.Context, a int64) <-chan int64 {
+func (*stream) AssertFn(ctx context.Context, a int64) <-chan StreamValue[int64, int64] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"a": a},
 	}
@@ -639,7 +771,7 @@ func (*stream) AssertFn(ctx context.Context, a int64) <-chan int64 {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan int64)
+	channel := make(chan StreamValue[int64, int64])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "AssertFn", encoded)
 	if err != nil {
 		close(channel)
@@ -660,7 +792,20 @@ func (*stream) AssertFn(ctx context.Context, a int64) <-chan int64 {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(int64)
+				if result.HasData {
+					data := (*result.Data).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -693,7 +838,7 @@ func AudioInput(ctx context.Context, aud any) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) AudioInput(ctx context.Context, aud any) <-chan string {
+func (*stream) AudioInput(ctx context.Context, aud any) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"aud": aud},
 	}
@@ -701,7 +846,7 @@ func (*stream) AudioInput(ctx context.Context, aud any) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "AudioInput", encoded)
 	if err != nil {
 		close(channel)
@@ -722,7 +867,20 @@ func (*stream) AudioInput(ctx context.Context, aud any) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -755,7 +913,7 @@ func BuildLinkedList(ctx context.Context, input []int64) (*types.LinkedList, err
 	return &casted, nil
 }
 
-func (*stream) BuildLinkedList(ctx context.Context, input []int64) <-chan types.LinkedList {
+func (*stream) BuildLinkedList(ctx context.Context, input []int64) <-chan StreamValue[types.LinkedList, stream_types.LinkedList] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -763,7 +921,7 @@ func (*stream) BuildLinkedList(ctx context.Context, input []int64) <-chan types.
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.LinkedList)
+	channel := make(chan StreamValue[types.LinkedList, stream_types.LinkedList])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "BuildLinkedList", encoded)
 	if err != nil {
 		close(channel)
@@ -784,7 +942,20 @@ func (*stream) BuildLinkedList(ctx context.Context, input []int64) <-chan types.
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.LinkedList)
+				if result.HasData {
+					data := (*result.Data).(types.LinkedList)
+					channel <- StreamValue[types.LinkedList, stream_types.LinkedList]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.LinkedList)
+					channel <- StreamValue[types.LinkedList, stream_types.LinkedList]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -817,7 +988,7 @@ func BuildTree(ctx context.Context, input types.BinaryNode) (*types.Tree, error)
 	return &casted, nil
 }
 
-func (*stream) BuildTree(ctx context.Context, input types.BinaryNode) <-chan types.Tree {
+func (*stream) BuildTree(ctx context.Context, input types.BinaryNode) <-chan StreamValue[types.Tree, stream_types.Tree] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -825,7 +996,7 @@ func (*stream) BuildTree(ctx context.Context, input types.BinaryNode) <-chan typ
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Tree)
+	channel := make(chan StreamValue[types.Tree, stream_types.Tree])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "BuildTree", encoded)
 	if err != nil {
 		close(channel)
@@ -846,7 +1017,20 @@ func (*stream) BuildTree(ctx context.Context, input types.BinaryNode) <-chan typ
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Tree)
+				if result.HasData {
+					data := (*result.Data).(types.Tree)
+					channel <- StreamValue[types.Tree, stream_types.Tree]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.Tree)
+					channel <- StreamValue[types.Tree, stream_types.Tree]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -879,7 +1063,7 @@ func ClassThatPointsToRecursiveClassThroughAlias(ctx context.Context, cls types.
 	return &casted, nil
 }
 
-func (*stream) ClassThatPointsToRecursiveClassThroughAlias(ctx context.Context, cls types.ClassToRecAlias) <-chan types.ClassToRecAlias {
+func (*stream) ClassThatPointsToRecursiveClassThroughAlias(ctx context.Context, cls types.ClassToRecAlias) <-chan StreamValue[types.ClassToRecAlias, stream_types.ClassToRecAlias] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"cls": cls},
 	}
@@ -887,7 +1071,7 @@ func (*stream) ClassThatPointsToRecursiveClassThroughAlias(ctx context.Context, 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.ClassToRecAlias)
+	channel := make(chan StreamValue[types.ClassToRecAlias, stream_types.ClassToRecAlias])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ClassThatPointsToRecursiveClassThroughAlias", encoded)
 	if err != nil {
 		close(channel)
@@ -908,7 +1092,20 @@ func (*stream) ClassThatPointsToRecursiveClassThroughAlias(ctx context.Context, 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.ClassToRecAlias)
+				if result.HasData {
+					data := (*result.Data).(types.ClassToRecAlias)
+					channel <- StreamValue[types.ClassToRecAlias, stream_types.ClassToRecAlias]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.ClassToRecAlias)
+					channel <- StreamValue[types.ClassToRecAlias, stream_types.ClassToRecAlias]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -941,7 +1138,7 @@ func ClassifyDynEnumTwo(ctx context.Context, input string) (*types.DynEnumTwo, e
 	return &casted, nil
 }
 
-func (*stream) ClassifyDynEnumTwo(ctx context.Context, input string) <-chan types.DynEnumTwo {
+func (*stream) ClassifyDynEnumTwo(ctx context.Context, input string) <-chan StreamValue[types.DynEnumTwo, types.DynEnumTwo] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -949,7 +1146,7 @@ func (*stream) ClassifyDynEnumTwo(ctx context.Context, input string) <-chan type
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.DynEnumTwo)
+	channel := make(chan StreamValue[types.DynEnumTwo, types.DynEnumTwo])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ClassifyDynEnumTwo", encoded)
 	if err != nil {
 		close(channel)
@@ -970,7 +1167,20 @@ func (*stream) ClassifyDynEnumTwo(ctx context.Context, input string) <-chan type
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.DynEnumTwo)
+				if result.HasData {
+					data := (*result.Data).(types.DynEnumTwo)
+					channel <- StreamValue[types.DynEnumTwo, types.DynEnumTwo]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.DynEnumTwo)
+					channel <- StreamValue[types.DynEnumTwo, types.DynEnumTwo]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1003,7 +1213,7 @@ func ClassifyMessage(ctx context.Context, input string) (*types.Category, error)
 	return &casted, nil
 }
 
-func (*stream) ClassifyMessage(ctx context.Context, input string) <-chan types.Category {
+func (*stream) ClassifyMessage(ctx context.Context, input string) <-chan StreamValue[types.Category, types.Category] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -1011,7 +1221,7 @@ func (*stream) ClassifyMessage(ctx context.Context, input string) <-chan types.C
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Category)
+	channel := make(chan StreamValue[types.Category, types.Category])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ClassifyMessage", encoded)
 	if err != nil {
 		close(channel)
@@ -1032,7 +1242,20 @@ func (*stream) ClassifyMessage(ctx context.Context, input string) <-chan types.C
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Category)
+				if result.HasData {
+					data := (*result.Data).(types.Category)
+					channel <- StreamValue[types.Category, types.Category]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.Category)
+					channel <- StreamValue[types.Category, types.Category]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1065,7 +1288,7 @@ func ClassifyMessage2(ctx context.Context, input string) (*types.Category, error
 	return &casted, nil
 }
 
-func (*stream) ClassifyMessage2(ctx context.Context, input string) <-chan types.Category {
+func (*stream) ClassifyMessage2(ctx context.Context, input string) <-chan StreamValue[types.Category, types.Category] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -1073,7 +1296,7 @@ func (*stream) ClassifyMessage2(ctx context.Context, input string) <-chan types.
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Category)
+	channel := make(chan StreamValue[types.Category, types.Category])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ClassifyMessage2", encoded)
 	if err != nil {
 		close(channel)
@@ -1094,7 +1317,20 @@ func (*stream) ClassifyMessage2(ctx context.Context, input string) <-chan types.
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Category)
+				if result.HasData {
+					data := (*result.Data).(types.Category)
+					channel <- StreamValue[types.Category, types.Category]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.Category)
+					channel <- StreamValue[types.Category, types.Category]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1127,7 +1363,7 @@ func ClassifyMessage3(ctx context.Context, input string) (*types.Category, error
 	return &casted, nil
 }
 
-func (*stream) ClassifyMessage3(ctx context.Context, input string) <-chan types.Category {
+func (*stream) ClassifyMessage3(ctx context.Context, input string) <-chan StreamValue[types.Category, types.Category] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -1135,7 +1371,7 @@ func (*stream) ClassifyMessage3(ctx context.Context, input string) <-chan types.
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Category)
+	channel := make(chan StreamValue[types.Category, types.Category])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ClassifyMessage3", encoded)
 	if err != nil {
 		close(channel)
@@ -1156,7 +1392,20 @@ func (*stream) ClassifyMessage3(ctx context.Context, input string) <-chan types.
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Category)
+				if result.HasData {
+					data := (*result.Data).(types.Category)
+					channel <- StreamValue[types.Category, types.Category]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.Category)
+					channel <- StreamValue[types.Category, types.Category]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1189,7 +1438,7 @@ func Completion(ctx context.Context, prefix string, suffix string, language stri
 	return &casted, nil
 }
 
-func (*stream) Completion(ctx context.Context, prefix string, suffix string, language string) <-chan string {
+func (*stream) Completion(ctx context.Context, prefix string, suffix string, language string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"prefix": prefix, "suffix": suffix, "language": language},
 	}
@@ -1197,7 +1446,7 @@ func (*stream) Completion(ctx context.Context, prefix string, suffix string, lan
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "Completion", encoded)
 	if err != nil {
 		close(channel)
@@ -1218,7 +1467,20 @@ func (*stream) Completion(ctx context.Context, prefix string, suffix string, lan
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1251,7 +1513,7 @@ func CustomTask(ctx context.Context, input string) (*types.Union__BookOrder__Fli
 	return &casted, nil
 }
 
-func (*stream) CustomTask(ctx context.Context, input string) <-chan types.Union__BookOrder__FlightConfirmation__GroceryReceipt {
+func (*stream) CustomTask(ctx context.Context, input string) <-chan StreamValue[types.Union__BookOrder__FlightConfirmation__GroceryReceipt, types.Union__BookOrder__FlightConfirmation__GroceryReceipt] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -1259,7 +1521,7 @@ func (*stream) CustomTask(ctx context.Context, input string) <-chan types.Union_
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Union__BookOrder__FlightConfirmation__GroceryReceipt)
+	channel := make(chan StreamValue[types.Union__BookOrder__FlightConfirmation__GroceryReceipt, types.Union__BookOrder__FlightConfirmation__GroceryReceipt])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "CustomTask", encoded)
 	if err != nil {
 		close(channel)
@@ -1280,7 +1542,20 @@ func (*stream) CustomTask(ctx context.Context, input string) <-chan types.Union_
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Union__BookOrder__FlightConfirmation__GroceryReceipt)
+				if result.HasData {
+					data := (*result.Data).(types.Union__BookOrder__FlightConfirmation__GroceryReceipt)
+					channel <- StreamValue[types.Union__BookOrder__FlightConfirmation__GroceryReceipt, types.Union__BookOrder__FlightConfirmation__GroceryReceipt]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.Union__BookOrder__FlightConfirmation__GroceryReceipt)
+					channel <- StreamValue[types.Union__BookOrder__FlightConfirmation__GroceryReceipt, types.Union__BookOrder__FlightConfirmation__GroceryReceipt]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1313,7 +1588,7 @@ func DescribeImage(ctx context.Context, img any) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) DescribeImage(ctx context.Context, img any) <-chan string {
+func (*stream) DescribeImage(ctx context.Context, img any) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"img": img},
 	}
@@ -1321,7 +1596,7 @@ func (*stream) DescribeImage(ctx context.Context, img any) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "DescribeImage", encoded)
 	if err != nil {
 		close(channel)
@@ -1342,7 +1617,20 @@ func (*stream) DescribeImage(ctx context.Context, img any) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1375,7 +1663,7 @@ func DescribeImage2(ctx context.Context, classWithImage types.ClassWithImage, im
 	return &casted, nil
 }
 
-func (*stream) DescribeImage2(ctx context.Context, classWithImage types.ClassWithImage, img2 any) <-chan string {
+func (*stream) DescribeImage2(ctx context.Context, classWithImage types.ClassWithImage, img2 any) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"classWithImage": classWithImage, "img2": img2},
 	}
@@ -1383,7 +1671,7 @@ func (*stream) DescribeImage2(ctx context.Context, classWithImage types.ClassWit
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "DescribeImage2", encoded)
 	if err != nil {
 		close(channel)
@@ -1404,7 +1692,20 @@ func (*stream) DescribeImage2(ctx context.Context, classWithImage types.ClassWit
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1437,7 +1738,7 @@ func DescribeImage3(ctx context.Context, classWithImage types.ClassWithImage, im
 	return &casted, nil
 }
 
-func (*stream) DescribeImage3(ctx context.Context, classWithImage types.ClassWithImage, img2 any) <-chan string {
+func (*stream) DescribeImage3(ctx context.Context, classWithImage types.ClassWithImage, img2 any) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"classWithImage": classWithImage, "img2": img2},
 	}
@@ -1445,7 +1746,7 @@ func (*stream) DescribeImage3(ctx context.Context, classWithImage types.ClassWit
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "DescribeImage3", encoded)
 	if err != nil {
 		close(channel)
@@ -1466,7 +1767,20 @@ func (*stream) DescribeImage3(ctx context.Context, classWithImage types.ClassWit
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1499,7 +1813,7 @@ func DescribeImage4(ctx context.Context, classWithImage types.ClassWithImage, im
 	return &casted, nil
 }
 
-func (*stream) DescribeImage4(ctx context.Context, classWithImage types.ClassWithImage, img2 any) <-chan string {
+func (*stream) DescribeImage4(ctx context.Context, classWithImage types.ClassWithImage, img2 any) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"classWithImage": classWithImage, "img2": img2},
 	}
@@ -1507,7 +1821,7 @@ func (*stream) DescribeImage4(ctx context.Context, classWithImage types.ClassWit
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "DescribeImage4", encoded)
 	if err != nil {
 		close(channel)
@@ -1528,7 +1842,20 @@ func (*stream) DescribeImage4(ctx context.Context, classWithImage types.ClassWit
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1561,7 +1888,7 @@ func DescribeMedia1599(ctx context.Context, img any, client_sector string, clien
 	return &casted, nil
 }
 
-func (*stream) DescribeMedia1599(ctx context.Context, img any, client_sector string, client_name string) <-chan string {
+func (*stream) DescribeMedia1599(ctx context.Context, img any, client_sector string, client_name string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"img": img, "client_sector": client_sector, "client_name": client_name},
 	}
@@ -1569,7 +1896,7 @@ func (*stream) DescribeMedia1599(ctx context.Context, img any, client_sector str
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "DescribeMedia1599", encoded)
 	if err != nil {
 		close(channel)
@@ -1590,7 +1917,20 @@ func (*stream) DescribeMedia1599(ctx context.Context, img any, client_sector str
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1623,7 +1963,7 @@ func DifferentiateUnions(ctx context.Context) (*types.Union__OriginalA__Original
 	return &casted, nil
 }
 
-func (*stream) DifferentiateUnions(ctx context.Context) <-chan types.Union__OriginalA__OriginalB {
+func (*stream) DifferentiateUnions(ctx context.Context) <-chan StreamValue[types.Union__OriginalA__OriginalB, types.Union__OriginalA__OriginalB] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{},
 	}
@@ -1631,7 +1971,7 @@ func (*stream) DifferentiateUnions(ctx context.Context) <-chan types.Union__Orig
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Union__OriginalA__OriginalB)
+	channel := make(chan StreamValue[types.Union__OriginalA__OriginalB, types.Union__OriginalA__OriginalB])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "DifferentiateUnions", encoded)
 	if err != nil {
 		close(channel)
@@ -1652,7 +1992,20 @@ func (*stream) DifferentiateUnions(ctx context.Context) <-chan types.Union__Orig
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Union__OriginalA__OriginalB)
+				if result.HasData {
+					data := (*result.Data).(types.Union__OriginalA__OriginalB)
+					channel <- StreamValue[types.Union__OriginalA__OriginalB, types.Union__OriginalA__OriginalB]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.Union__OriginalA__OriginalB)
+					channel <- StreamValue[types.Union__OriginalA__OriginalB, types.Union__OriginalA__OriginalB]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1685,7 +2038,7 @@ func DummyOutputFunction(ctx context.Context, input string) (*types.DummyOutput,
 	return &casted, nil
 }
 
-func (*stream) DummyOutputFunction(ctx context.Context, input string) <-chan types.DummyOutput {
+func (*stream) DummyOutputFunction(ctx context.Context, input string) <-chan StreamValue[types.DummyOutput, stream_types.DummyOutput] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -1693,7 +2046,7 @@ func (*stream) DummyOutputFunction(ctx context.Context, input string) <-chan typ
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.DummyOutput)
+	channel := make(chan StreamValue[types.DummyOutput, stream_types.DummyOutput])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "DummyOutputFunction", encoded)
 	if err != nil {
 		close(channel)
@@ -1714,7 +2067,20 @@ func (*stream) DummyOutputFunction(ctx context.Context, input string) <-chan typ
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.DummyOutput)
+				if result.HasData {
+					data := (*result.Data).(types.DummyOutput)
+					channel <- StreamValue[types.DummyOutput, stream_types.DummyOutput]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.DummyOutput)
+					channel <- StreamValue[types.DummyOutput, stream_types.DummyOutput]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1747,7 +2113,7 @@ func DynamicFunc(ctx context.Context, input types.DynamicClassOne) (*types.Dynam
 	return &casted, nil
 }
 
-func (*stream) DynamicFunc(ctx context.Context, input types.DynamicClassOne) <-chan types.DynamicClassTwo {
+func (*stream) DynamicFunc(ctx context.Context, input types.DynamicClassOne) <-chan StreamValue[types.DynamicClassTwo, stream_types.DynamicClassTwo] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -1755,7 +2121,7 @@ func (*stream) DynamicFunc(ctx context.Context, input types.DynamicClassOne) <-c
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.DynamicClassTwo)
+	channel := make(chan StreamValue[types.DynamicClassTwo, stream_types.DynamicClassTwo])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "DynamicFunc", encoded)
 	if err != nil {
 		close(channel)
@@ -1776,7 +2142,20 @@ func (*stream) DynamicFunc(ctx context.Context, input types.DynamicClassOne) <-c
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.DynamicClassTwo)
+				if result.HasData {
+					data := (*result.Data).(types.DynamicClassTwo)
+					channel <- StreamValue[types.DynamicClassTwo, stream_types.DynamicClassTwo]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.DynamicClassTwo)
+					channel <- StreamValue[types.DynamicClassTwo, stream_types.DynamicClassTwo]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1809,7 +2188,7 @@ func DynamicInputOutput(ctx context.Context, input types.DynInputOutput) (*types
 	return &casted, nil
 }
 
-func (*stream) DynamicInputOutput(ctx context.Context, input types.DynInputOutput) <-chan types.DynInputOutput {
+func (*stream) DynamicInputOutput(ctx context.Context, input types.DynInputOutput) <-chan StreamValue[types.DynInputOutput, stream_types.DynInputOutput] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -1817,7 +2196,7 @@ func (*stream) DynamicInputOutput(ctx context.Context, input types.DynInputOutpu
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.DynInputOutput)
+	channel := make(chan StreamValue[types.DynInputOutput, stream_types.DynInputOutput])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "DynamicInputOutput", encoded)
 	if err != nil {
 		close(channel)
@@ -1838,7 +2217,20 @@ func (*stream) DynamicInputOutput(ctx context.Context, input types.DynInputOutpu
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.DynInputOutput)
+				if result.HasData {
+					data := (*result.Data).(types.DynInputOutput)
+					channel <- StreamValue[types.DynInputOutput, stream_types.DynInputOutput]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.DynInputOutput)
+					channel <- StreamValue[types.DynInputOutput, stream_types.DynInputOutput]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1871,7 +2263,7 @@ func DynamicListInputOutput(ctx context.Context, input []types.DynInputOutput) (
 	return &casted, nil
 }
 
-func (*stream) DynamicListInputOutput(ctx context.Context, input []types.DynInputOutput) <-chan []types.DynInputOutput {
+func (*stream) DynamicListInputOutput(ctx context.Context, input []types.DynInputOutput) <-chan StreamValue[[]types.DynInputOutput, []stream_types.DynInputOutput] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -1879,7 +2271,7 @@ func (*stream) DynamicListInputOutput(ctx context.Context, input []types.DynInpu
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan []types.DynInputOutput)
+	channel := make(chan StreamValue[[]types.DynInputOutput, []stream_types.DynInputOutput])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "DynamicListInputOutput", encoded)
 	if err != nil {
 		close(channel)
@@ -1900,7 +2292,20 @@ func (*stream) DynamicListInputOutput(ctx context.Context, input []types.DynInpu
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).([]types.DynInputOutput)
+				if result.HasData {
+					data := (*result.Data).([]types.DynInputOutput)
+					channel <- StreamValue[[]types.DynInputOutput, []stream_types.DynInputOutput]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).([]stream_types.DynInputOutput)
+					channel <- StreamValue[[]types.DynInputOutput, []stream_types.DynInputOutput]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1933,7 +2338,7 @@ func ExpectFailure(ctx context.Context) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) ExpectFailure(ctx context.Context) <-chan string {
+func (*stream) ExpectFailure(ctx context.Context) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{},
 	}
@@ -1941,7 +2346,7 @@ func (*stream) ExpectFailure(ctx context.Context) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ExpectFailure", encoded)
 	if err != nil {
 		close(channel)
@@ -1962,7 +2367,20 @@ func (*stream) ExpectFailure(ctx context.Context) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -1995,7 +2413,7 @@ func ExtractContactInfo(ctx context.Context, document string) (*types.ContactInf
 	return &casted, nil
 }
 
-func (*stream) ExtractContactInfo(ctx context.Context, document string) <-chan types.ContactInfo {
+func (*stream) ExtractContactInfo(ctx context.Context, document string) <-chan StreamValue[types.ContactInfo, stream_types.ContactInfo] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"document": document},
 	}
@@ -2003,7 +2421,7 @@ func (*stream) ExtractContactInfo(ctx context.Context, document string) <-chan t
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.ContactInfo)
+	channel := make(chan StreamValue[types.ContactInfo, stream_types.ContactInfo])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ExtractContactInfo", encoded)
 	if err != nil {
 		close(channel)
@@ -2024,7 +2442,20 @@ func (*stream) ExtractContactInfo(ctx context.Context, document string) <-chan t
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.ContactInfo)
+				if result.HasData {
+					data := (*result.Data).(types.ContactInfo)
+					channel <- StreamValue[types.ContactInfo, stream_types.ContactInfo]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.ContactInfo)
+					channel <- StreamValue[types.ContactInfo, stream_types.ContactInfo]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2057,7 +2488,7 @@ func ExtractEntities(ctx context.Context, text string) (*types.DynamicSchema, er
 	return &casted, nil
 }
 
-func (*stream) ExtractEntities(ctx context.Context, text string) <-chan types.DynamicSchema {
+func (*stream) ExtractEntities(ctx context.Context, text string) <-chan StreamValue[types.DynamicSchema, stream_types.DynamicSchema] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"text": text},
 	}
@@ -2065,7 +2496,7 @@ func (*stream) ExtractEntities(ctx context.Context, text string) <-chan types.Dy
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.DynamicSchema)
+	channel := make(chan StreamValue[types.DynamicSchema, stream_types.DynamicSchema])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ExtractEntities", encoded)
 	if err != nil {
 		close(channel)
@@ -2086,7 +2517,20 @@ func (*stream) ExtractEntities(ctx context.Context, text string) <-chan types.Dy
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.DynamicSchema)
+				if result.HasData {
+					data := (*result.Data).(types.DynamicSchema)
+					channel <- StreamValue[types.DynamicSchema, stream_types.DynamicSchema]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.DynamicSchema)
+					channel <- StreamValue[types.DynamicSchema, stream_types.DynamicSchema]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2119,7 +2563,7 @@ func ExtractHobby(ctx context.Context, text string) (*[]types.Hobby, error) {
 	return &casted, nil
 }
 
-func (*stream) ExtractHobby(ctx context.Context, text string) <-chan []types.Hobby {
+func (*stream) ExtractHobby(ctx context.Context, text string) <-chan StreamValue[[]types.Hobby, []types.Hobby] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"text": text},
 	}
@@ -2127,7 +2571,7 @@ func (*stream) ExtractHobby(ctx context.Context, text string) <-chan []types.Hob
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan []types.Hobby)
+	channel := make(chan StreamValue[[]types.Hobby, []types.Hobby])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ExtractHobby", encoded)
 	if err != nil {
 		close(channel)
@@ -2148,7 +2592,20 @@ func (*stream) ExtractHobby(ctx context.Context, text string) <-chan []types.Hob
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).([]types.Hobby)
+				if result.HasData {
+					data := (*result.Data).([]types.Hobby)
+					channel <- StreamValue[[]types.Hobby, []types.Hobby]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).([]types.Hobby)
+					channel <- StreamValue[[]types.Hobby, []types.Hobby]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2181,7 +2638,7 @@ func ExtractNames(ctx context.Context, input string) (*[]string, error) {
 	return &casted, nil
 }
 
-func (*stream) ExtractNames(ctx context.Context, input string) <-chan []string {
+func (*stream) ExtractNames(ctx context.Context, input string) <-chan StreamValue[[]string, []string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -2189,7 +2646,7 @@ func (*stream) ExtractNames(ctx context.Context, input string) <-chan []string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan []string)
+	channel := make(chan StreamValue[[]string, []string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ExtractNames", encoded)
 	if err != nil {
 		close(channel)
@@ -2210,7 +2667,20 @@ func (*stream) ExtractNames(ctx context.Context, input string) <-chan []string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).([]string)
+				if result.HasData {
+					data := (*result.Data).([]string)
+					channel <- StreamValue[[]string, []string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).([]string)
+					channel <- StreamValue[[]string, []string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2243,7 +2713,7 @@ func ExtractPeople(ctx context.Context, text string) (*[]types.Person, error) {
 	return &casted, nil
 }
 
-func (*stream) ExtractPeople(ctx context.Context, text string) <-chan []types.Person {
+func (*stream) ExtractPeople(ctx context.Context, text string) <-chan StreamValue[[]types.Person, []stream_types.Person] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"text": text},
 	}
@@ -2251,7 +2721,7 @@ func (*stream) ExtractPeople(ctx context.Context, text string) <-chan []types.Pe
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan []types.Person)
+	channel := make(chan StreamValue[[]types.Person, []stream_types.Person])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ExtractPeople", encoded)
 	if err != nil {
 		close(channel)
@@ -2272,7 +2742,20 @@ func (*stream) ExtractPeople(ctx context.Context, text string) <-chan []types.Pe
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).([]types.Person)
+				if result.HasData {
+					data := (*result.Data).([]types.Person)
+					channel <- StreamValue[[]types.Person, []stream_types.Person]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).([]stream_types.Person)
+					channel <- StreamValue[[]types.Person, []stream_types.Person]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2305,7 +2788,7 @@ func ExtractReceiptInfo(ctx context.Context, email string, reason types.Union__s
 	return &casted, nil
 }
 
-func (*stream) ExtractReceiptInfo(ctx context.Context, email string, reason types.Union__string_curiosity__string_personal_finance) <-chan types.ReceiptInfo {
+func (*stream) ExtractReceiptInfo(ctx context.Context, email string, reason types.Union__string_curiosity__string_personal_finance) <-chan StreamValue[types.ReceiptInfo, stream_types.ReceiptInfo] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"email": email, "reason": reason},
 	}
@@ -2313,7 +2796,7 @@ func (*stream) ExtractReceiptInfo(ctx context.Context, email string, reason type
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.ReceiptInfo)
+	channel := make(chan StreamValue[types.ReceiptInfo, stream_types.ReceiptInfo])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ExtractReceiptInfo", encoded)
 	if err != nil {
 		close(channel)
@@ -2334,7 +2817,20 @@ func (*stream) ExtractReceiptInfo(ctx context.Context, email string, reason type
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.ReceiptInfo)
+				if result.HasData {
+					data := (*result.Data).(types.ReceiptInfo)
+					channel <- StreamValue[types.ReceiptInfo, stream_types.ReceiptInfo]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.ReceiptInfo)
+					channel <- StreamValue[types.ReceiptInfo, stream_types.ReceiptInfo]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2367,7 +2863,7 @@ func ExtractResume(ctx context.Context, resume string, img *any) (*types.Resume,
 	return &casted, nil
 }
 
-func (*stream) ExtractResume(ctx context.Context, resume string, img *any) <-chan types.Resume {
+func (*stream) ExtractResume(ctx context.Context, resume string, img *any) <-chan StreamValue[types.Resume, stream_types.Resume] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"resume": resume, "img": img},
 	}
@@ -2375,7 +2871,7 @@ func (*stream) ExtractResume(ctx context.Context, resume string, img *any) <-cha
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Resume)
+	channel := make(chan StreamValue[types.Resume, stream_types.Resume])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ExtractResume", encoded)
 	if err != nil {
 		close(channel)
@@ -2396,7 +2892,20 @@ func (*stream) ExtractResume(ctx context.Context, resume string, img *any) <-cha
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Resume)
+				if result.HasData {
+					data := (*result.Data).(types.Resume)
+					channel <- StreamValue[types.Resume, stream_types.Resume]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.Resume)
+					channel <- StreamValue[types.Resume, stream_types.Resume]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2429,7 +2938,7 @@ func ExtractResume2(ctx context.Context, resume string) (*types.Resume, error) {
 	return &casted, nil
 }
 
-func (*stream) ExtractResume2(ctx context.Context, resume string) <-chan types.Resume {
+func (*stream) ExtractResume2(ctx context.Context, resume string) <-chan StreamValue[types.Resume, stream_types.Resume] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"resume": resume},
 	}
@@ -2437,7 +2946,7 @@ func (*stream) ExtractResume2(ctx context.Context, resume string) <-chan types.R
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Resume)
+	channel := make(chan StreamValue[types.Resume, stream_types.Resume])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ExtractResume2", encoded)
 	if err != nil {
 		close(channel)
@@ -2458,7 +2967,20 @@ func (*stream) ExtractResume2(ctx context.Context, resume string) <-chan types.R
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Resume)
+				if result.HasData {
+					data := (*result.Data).(types.Resume)
+					channel <- StreamValue[types.Resume, stream_types.Resume]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.Resume)
+					channel <- StreamValue[types.Resume, stream_types.Resume]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2493,7 +3015,7 @@ func FnClassOptionalOutput(ctx context.Context, input string) (**types.ClassOpti
 	return &casted, nil
 }
 
-func (*stream) FnClassOptionalOutput(ctx context.Context, input string) <-chan *types.ClassOptionalOutput {
+func (*stream) FnClassOptionalOutput(ctx context.Context, input string) <-chan StreamValue[*types.ClassOptionalOutput, *stream_types.ClassOptionalOutput] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -2501,7 +3023,7 @@ func (*stream) FnClassOptionalOutput(ctx context.Context, input string) <-chan *
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan *types.ClassOptionalOutput)
+	channel := make(chan StreamValue[*types.ClassOptionalOutput, *stream_types.ClassOptionalOutput])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnClassOptionalOutput", encoded)
 	if err != nil {
 		close(channel)
@@ -2522,7 +3044,20 @@ func (*stream) FnClassOptionalOutput(ctx context.Context, input string) <-chan *
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(*types.ClassOptionalOutput)
+				if result.HasData {
+					data := (*result.Data).(*types.ClassOptionalOutput)
+					channel <- StreamValue[*types.ClassOptionalOutput, *stream_types.ClassOptionalOutput]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(*stream_types.ClassOptionalOutput)
+					channel <- StreamValue[*types.ClassOptionalOutput, *stream_types.ClassOptionalOutput]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2557,7 +3092,7 @@ func FnClassOptionalOutput2(ctx context.Context, input string) (**types.ClassOpt
 	return &casted, nil
 }
 
-func (*stream) FnClassOptionalOutput2(ctx context.Context, input string) <-chan *types.ClassOptionalOutput2 {
+func (*stream) FnClassOptionalOutput2(ctx context.Context, input string) <-chan StreamValue[*types.ClassOptionalOutput2, *stream_types.ClassOptionalOutput2] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -2565,7 +3100,7 @@ func (*stream) FnClassOptionalOutput2(ctx context.Context, input string) <-chan 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan *types.ClassOptionalOutput2)
+	channel := make(chan StreamValue[*types.ClassOptionalOutput2, *stream_types.ClassOptionalOutput2])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnClassOptionalOutput2", encoded)
 	if err != nil {
 		close(channel)
@@ -2586,7 +3121,20 @@ func (*stream) FnClassOptionalOutput2(ctx context.Context, input string) <-chan 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(*types.ClassOptionalOutput2)
+				if result.HasData {
+					data := (*result.Data).(*types.ClassOptionalOutput2)
+					channel <- StreamValue[*types.ClassOptionalOutput2, *stream_types.ClassOptionalOutput2]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(*stream_types.ClassOptionalOutput2)
+					channel <- StreamValue[*types.ClassOptionalOutput2, *stream_types.ClassOptionalOutput2]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2619,7 +3167,7 @@ func FnEnumListOutput(ctx context.Context, input string) (*[]types.EnumOutput, e
 	return &casted, nil
 }
 
-func (*stream) FnEnumListOutput(ctx context.Context, input string) <-chan []types.EnumOutput {
+func (*stream) FnEnumListOutput(ctx context.Context, input string) <-chan StreamValue[[]types.EnumOutput, []types.EnumOutput] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -2627,7 +3175,7 @@ func (*stream) FnEnumListOutput(ctx context.Context, input string) <-chan []type
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan []types.EnumOutput)
+	channel := make(chan StreamValue[[]types.EnumOutput, []types.EnumOutput])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnEnumListOutput", encoded)
 	if err != nil {
 		close(channel)
@@ -2648,7 +3196,20 @@ func (*stream) FnEnumListOutput(ctx context.Context, input string) <-chan []type
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).([]types.EnumOutput)
+				if result.HasData {
+					data := (*result.Data).([]types.EnumOutput)
+					channel <- StreamValue[[]types.EnumOutput, []types.EnumOutput]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).([]types.EnumOutput)
+					channel <- StreamValue[[]types.EnumOutput, []types.EnumOutput]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2681,7 +3242,7 @@ func FnEnumOutput(ctx context.Context, input string) (*types.EnumOutput, error) 
 	return &casted, nil
 }
 
-func (*stream) FnEnumOutput(ctx context.Context, input string) <-chan types.EnumOutput {
+func (*stream) FnEnumOutput(ctx context.Context, input string) <-chan StreamValue[types.EnumOutput, types.EnumOutput] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -2689,7 +3250,7 @@ func (*stream) FnEnumOutput(ctx context.Context, input string) <-chan types.Enum
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.EnumOutput)
+	channel := make(chan StreamValue[types.EnumOutput, types.EnumOutput])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnEnumOutput", encoded)
 	if err != nil {
 		close(channel)
@@ -2710,7 +3271,20 @@ func (*stream) FnEnumOutput(ctx context.Context, input string) <-chan types.Enum
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.EnumOutput)
+				if result.HasData {
+					data := (*result.Data).(types.EnumOutput)
+					channel <- StreamValue[types.EnumOutput, types.EnumOutput]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.EnumOutput)
+					channel <- StreamValue[types.EnumOutput, types.EnumOutput]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2743,7 +3317,7 @@ func FnLiteralClassInputOutput(ctx context.Context, input types.LiteralClassHell
 	return &casted, nil
 }
 
-func (*stream) FnLiteralClassInputOutput(ctx context.Context, input types.LiteralClassHello) <-chan types.LiteralClassHello {
+func (*stream) FnLiteralClassInputOutput(ctx context.Context, input types.LiteralClassHello) <-chan StreamValue[types.LiteralClassHello, stream_types.LiteralClassHello] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -2751,7 +3325,7 @@ func (*stream) FnLiteralClassInputOutput(ctx context.Context, input types.Litera
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.LiteralClassHello)
+	channel := make(chan StreamValue[types.LiteralClassHello, stream_types.LiteralClassHello])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnLiteralClassInputOutput", encoded)
 	if err != nil {
 		close(channel)
@@ -2772,7 +3346,20 @@ func (*stream) FnLiteralClassInputOutput(ctx context.Context, input types.Litera
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.LiteralClassHello)
+				if result.HasData {
+					data := (*result.Data).(types.LiteralClassHello)
+					channel <- StreamValue[types.LiteralClassHello, stream_types.LiteralClassHello]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.LiteralClassHello)
+					channel <- StreamValue[types.LiteralClassHello, stream_types.LiteralClassHello]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2805,7 +3392,7 @@ func FnLiteralUnionClassInputOutput(ctx context.Context, input types.Union__Lite
 	return &casted, nil
 }
 
-func (*stream) FnLiteralUnionClassInputOutput(ctx context.Context, input types.Union__LiteralClassOne__LiteralClassTwo) <-chan types.Union__LiteralClassOne__LiteralClassTwo {
+func (*stream) FnLiteralUnionClassInputOutput(ctx context.Context, input types.Union__LiteralClassOne__LiteralClassTwo) <-chan StreamValue[types.Union__LiteralClassOne__LiteralClassTwo, types.Union__LiteralClassOne__LiteralClassTwo] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -2813,7 +3400,7 @@ func (*stream) FnLiteralUnionClassInputOutput(ctx context.Context, input types.U
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Union__LiteralClassOne__LiteralClassTwo)
+	channel := make(chan StreamValue[types.Union__LiteralClassOne__LiteralClassTwo, types.Union__LiteralClassOne__LiteralClassTwo])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnLiteralUnionClassInputOutput", encoded)
 	if err != nil {
 		close(channel)
@@ -2834,7 +3421,20 @@ func (*stream) FnLiteralUnionClassInputOutput(ctx context.Context, input types.U
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Union__LiteralClassOne__LiteralClassTwo)
+				if result.HasData {
+					data := (*result.Data).(types.Union__LiteralClassOne__LiteralClassTwo)
+					channel <- StreamValue[types.Union__LiteralClassOne__LiteralClassTwo, types.Union__LiteralClassOne__LiteralClassTwo]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.Union__LiteralClassOne__LiteralClassTwo)
+					channel <- StreamValue[types.Union__LiteralClassOne__LiteralClassTwo, types.Union__LiteralClassOne__LiteralClassTwo]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2867,7 +3467,7 @@ func FnNamedArgsSingleStringOptional(ctx context.Context, myString *string) (*st
 	return &casted, nil
 }
 
-func (*stream) FnNamedArgsSingleStringOptional(ctx context.Context, myString *string) <-chan string {
+func (*stream) FnNamedArgsSingleStringOptional(ctx context.Context, myString *string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myString": myString},
 	}
@@ -2875,7 +3475,7 @@ func (*stream) FnNamedArgsSingleStringOptional(ctx context.Context, myString *st
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnNamedArgsSingleStringOptional", encoded)
 	if err != nil {
 		close(channel)
@@ -2896,7 +3496,20 @@ func (*stream) FnNamedArgsSingleStringOptional(ctx context.Context, myString *st
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2929,7 +3542,7 @@ func FnOutputBool(ctx context.Context, input string) (*bool, error) {
 	return &casted, nil
 }
 
-func (*stream) FnOutputBool(ctx context.Context, input string) <-chan bool {
+func (*stream) FnOutputBool(ctx context.Context, input string) <-chan StreamValue[bool, bool] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -2937,7 +3550,7 @@ func (*stream) FnOutputBool(ctx context.Context, input string) <-chan bool {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan bool)
+	channel := make(chan StreamValue[bool, bool])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnOutputBool", encoded)
 	if err != nil {
 		close(channel)
@@ -2958,7 +3571,20 @@ func (*stream) FnOutputBool(ctx context.Context, input string) <-chan bool {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(bool)
+				if result.HasData {
+					data := (*result.Data).(bool)
+					channel <- StreamValue[bool, bool]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(bool)
+					channel <- StreamValue[bool, bool]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -2991,7 +3617,7 @@ func FnOutputClass(ctx context.Context, input string) (*types.TestOutputClass, e
 	return &casted, nil
 }
 
-func (*stream) FnOutputClass(ctx context.Context, input string) <-chan types.TestOutputClass {
+func (*stream) FnOutputClass(ctx context.Context, input string) <-chan StreamValue[types.TestOutputClass, stream_types.TestOutputClass] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -2999,7 +3625,7 @@ func (*stream) FnOutputClass(ctx context.Context, input string) <-chan types.Tes
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.TestOutputClass)
+	channel := make(chan StreamValue[types.TestOutputClass, stream_types.TestOutputClass])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnOutputClass", encoded)
 	if err != nil {
 		close(channel)
@@ -3020,7 +3646,20 @@ func (*stream) FnOutputClass(ctx context.Context, input string) <-chan types.Tes
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.TestOutputClass)
+				if result.HasData {
+					data := (*result.Data).(types.TestOutputClass)
+					channel <- StreamValue[types.TestOutputClass, stream_types.TestOutputClass]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.TestOutputClass)
+					channel <- StreamValue[types.TestOutputClass, stream_types.TestOutputClass]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3053,7 +3692,7 @@ func FnOutputClassList(ctx context.Context, input string) (*[]types.TestOutputCl
 	return &casted, nil
 }
 
-func (*stream) FnOutputClassList(ctx context.Context, input string) <-chan []types.TestOutputClass {
+func (*stream) FnOutputClassList(ctx context.Context, input string) <-chan StreamValue[[]types.TestOutputClass, []stream_types.TestOutputClass] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -3061,7 +3700,7 @@ func (*stream) FnOutputClassList(ctx context.Context, input string) <-chan []typ
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan []types.TestOutputClass)
+	channel := make(chan StreamValue[[]types.TestOutputClass, []stream_types.TestOutputClass])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnOutputClassList", encoded)
 	if err != nil {
 		close(channel)
@@ -3082,7 +3721,20 @@ func (*stream) FnOutputClassList(ctx context.Context, input string) <-chan []typ
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).([]types.TestOutputClass)
+				if result.HasData {
+					data := (*result.Data).([]types.TestOutputClass)
+					channel <- StreamValue[[]types.TestOutputClass, []stream_types.TestOutputClass]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).([]stream_types.TestOutputClass)
+					channel <- StreamValue[[]types.TestOutputClass, []stream_types.TestOutputClass]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3115,7 +3767,7 @@ func FnOutputClassNested(ctx context.Context, input string) (*types.TestClassNes
 	return &casted, nil
 }
 
-func (*stream) FnOutputClassNested(ctx context.Context, input string) <-chan types.TestClassNested {
+func (*stream) FnOutputClassNested(ctx context.Context, input string) <-chan StreamValue[types.TestClassNested, stream_types.TestClassNested] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -3123,7 +3775,7 @@ func (*stream) FnOutputClassNested(ctx context.Context, input string) <-chan typ
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.TestClassNested)
+	channel := make(chan StreamValue[types.TestClassNested, stream_types.TestClassNested])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnOutputClassNested", encoded)
 	if err != nil {
 		close(channel)
@@ -3144,7 +3796,20 @@ func (*stream) FnOutputClassNested(ctx context.Context, input string) <-chan typ
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.TestClassNested)
+				if result.HasData {
+					data := (*result.Data).(types.TestClassNested)
+					channel <- StreamValue[types.TestClassNested, stream_types.TestClassNested]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.TestClassNested)
+					channel <- StreamValue[types.TestClassNested, stream_types.TestClassNested]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3177,7 +3842,7 @@ func FnOutputClassWithEnum(ctx context.Context, input string) (*types.TestClassW
 	return &casted, nil
 }
 
-func (*stream) FnOutputClassWithEnum(ctx context.Context, input string) <-chan types.TestClassWithEnum {
+func (*stream) FnOutputClassWithEnum(ctx context.Context, input string) <-chan StreamValue[types.TestClassWithEnum, stream_types.TestClassWithEnum] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -3185,7 +3850,7 @@ func (*stream) FnOutputClassWithEnum(ctx context.Context, input string) <-chan t
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.TestClassWithEnum)
+	channel := make(chan StreamValue[types.TestClassWithEnum, stream_types.TestClassWithEnum])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnOutputClassWithEnum", encoded)
 	if err != nil {
 		close(channel)
@@ -3206,7 +3871,20 @@ func (*stream) FnOutputClassWithEnum(ctx context.Context, input string) <-chan t
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.TestClassWithEnum)
+				if result.HasData {
+					data := (*result.Data).(types.TestClassWithEnum)
+					channel <- StreamValue[types.TestClassWithEnum, stream_types.TestClassWithEnum]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.TestClassWithEnum)
+					channel <- StreamValue[types.TestClassWithEnum, stream_types.TestClassWithEnum]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3239,7 +3917,7 @@ func FnOutputInt(ctx context.Context, input string) (*int64, error) {
 	return &casted, nil
 }
 
-func (*stream) FnOutputInt(ctx context.Context, input string) <-chan int64 {
+func (*stream) FnOutputInt(ctx context.Context, input string) <-chan StreamValue[int64, int64] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -3247,7 +3925,7 @@ func (*stream) FnOutputInt(ctx context.Context, input string) <-chan int64 {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan int64)
+	channel := make(chan StreamValue[int64, int64])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnOutputInt", encoded)
 	if err != nil {
 		close(channel)
@@ -3268,7 +3946,20 @@ func (*stream) FnOutputInt(ctx context.Context, input string) <-chan int64 {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(int64)
+				if result.HasData {
+					data := (*result.Data).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3301,7 +3992,7 @@ func FnOutputLiteralBool(ctx context.Context, input string) (*bool, error) {
 	return &casted, nil
 }
 
-func (*stream) FnOutputLiteralBool(ctx context.Context, input string) <-chan bool {
+func (*stream) FnOutputLiteralBool(ctx context.Context, input string) <-chan StreamValue[bool, bool] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -3309,7 +4000,7 @@ func (*stream) FnOutputLiteralBool(ctx context.Context, input string) <-chan boo
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan bool)
+	channel := make(chan StreamValue[bool, bool])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnOutputLiteralBool", encoded)
 	if err != nil {
 		close(channel)
@@ -3330,7 +4021,20 @@ func (*stream) FnOutputLiteralBool(ctx context.Context, input string) <-chan boo
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(bool)
+				if result.HasData {
+					data := (*result.Data).(bool)
+					channel <- StreamValue[bool, bool]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(bool)
+					channel <- StreamValue[bool, bool]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3363,7 +4067,7 @@ func FnOutputLiteralInt(ctx context.Context, input string) (*int, error) {
 	return &casted, nil
 }
 
-func (*stream) FnOutputLiteralInt(ctx context.Context, input string) <-chan int {
+func (*stream) FnOutputLiteralInt(ctx context.Context, input string) <-chan StreamValue[int, int] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -3371,7 +4075,7 @@ func (*stream) FnOutputLiteralInt(ctx context.Context, input string) <-chan int 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan int)
+	channel := make(chan StreamValue[int, int])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnOutputLiteralInt", encoded)
 	if err != nil {
 		close(channel)
@@ -3392,7 +4096,20 @@ func (*stream) FnOutputLiteralInt(ctx context.Context, input string) <-chan int 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(int)
+				if result.HasData {
+					data := (*result.Data).(int)
+					channel <- StreamValue[int, int]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(int)
+					channel <- StreamValue[int, int]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3425,7 +4142,7 @@ func FnOutputLiteralString(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) FnOutputLiteralString(ctx context.Context, input string) <-chan string {
+func (*stream) FnOutputLiteralString(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -3433,7 +4150,7 @@ func (*stream) FnOutputLiteralString(ctx context.Context, input string) <-chan s
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnOutputLiteralString", encoded)
 	if err != nil {
 		close(channel)
@@ -3454,7 +4171,20 @@ func (*stream) FnOutputLiteralString(ctx context.Context, input string) <-chan s
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3487,7 +4217,7 @@ func FnOutputStringList(ctx context.Context, input string) (*[]string, error) {
 	return &casted, nil
 }
 
-func (*stream) FnOutputStringList(ctx context.Context, input string) <-chan []string {
+func (*stream) FnOutputStringList(ctx context.Context, input string) <-chan StreamValue[[]string, []string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -3495,7 +4225,7 @@ func (*stream) FnOutputStringList(ctx context.Context, input string) <-chan []st
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan []string)
+	channel := make(chan StreamValue[[]string, []string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnOutputStringList", encoded)
 	if err != nil {
 		close(channel)
@@ -3516,7 +4246,20 @@ func (*stream) FnOutputStringList(ctx context.Context, input string) <-chan []st
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).([]string)
+				if result.HasData {
+					data := (*result.Data).([]string)
+					channel <- StreamValue[[]string, []string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).([]string)
+					channel <- StreamValue[[]string, []string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3549,7 +4292,7 @@ func FnTestAliasedEnumOutput(ctx context.Context, input string) (*types.TestEnum
 	return &casted, nil
 }
 
-func (*stream) FnTestAliasedEnumOutput(ctx context.Context, input string) <-chan types.TestEnum {
+func (*stream) FnTestAliasedEnumOutput(ctx context.Context, input string) <-chan StreamValue[types.TestEnum, types.TestEnum] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -3557,7 +4300,7 @@ func (*stream) FnTestAliasedEnumOutput(ctx context.Context, input string) <-chan
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.TestEnum)
+	channel := make(chan StreamValue[types.TestEnum, types.TestEnum])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnTestAliasedEnumOutput", encoded)
 	if err != nil {
 		close(channel)
@@ -3578,7 +4321,20 @@ func (*stream) FnTestAliasedEnumOutput(ctx context.Context, input string) <-chan
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.TestEnum)
+				if result.HasData {
+					data := (*result.Data).(types.TestEnum)
+					channel <- StreamValue[types.TestEnum, types.TestEnum]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.TestEnum)
+					channel <- StreamValue[types.TestEnum, types.TestEnum]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3611,7 +4367,7 @@ func FnTestClassAlias(ctx context.Context, input string) (*types.TestClassAlias,
 	return &casted, nil
 }
 
-func (*stream) FnTestClassAlias(ctx context.Context, input string) <-chan types.TestClassAlias {
+func (*stream) FnTestClassAlias(ctx context.Context, input string) <-chan StreamValue[types.TestClassAlias, stream_types.TestClassAlias] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -3619,7 +4375,7 @@ func (*stream) FnTestClassAlias(ctx context.Context, input string) <-chan types.
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.TestClassAlias)
+	channel := make(chan StreamValue[types.TestClassAlias, stream_types.TestClassAlias])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnTestClassAlias", encoded)
 	if err != nil {
 		close(channel)
@@ -3640,7 +4396,20 @@ func (*stream) FnTestClassAlias(ctx context.Context, input string) <-chan types.
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.TestClassAlias)
+				if result.HasData {
+					data := (*result.Data).(types.TestClassAlias)
+					channel <- StreamValue[types.TestClassAlias, stream_types.TestClassAlias]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.TestClassAlias)
+					channel <- StreamValue[types.TestClassAlias, stream_types.TestClassAlias]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3673,7 +4442,7 @@ func FnTestNamedArgsSingleEnum(ctx context.Context, myArg types.NamedArgsSingleE
 	return &casted, nil
 }
 
-func (*stream) FnTestNamedArgsSingleEnum(ctx context.Context, myArg types.NamedArgsSingleEnum) <-chan string {
+func (*stream) FnTestNamedArgsSingleEnum(ctx context.Context, myArg types.NamedArgsSingleEnum) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myArg": myArg},
 	}
@@ -3681,7 +4450,7 @@ func (*stream) FnTestNamedArgsSingleEnum(ctx context.Context, myArg types.NamedA
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "FnTestNamedArgsSingleEnum", encoded)
 	if err != nil {
 		close(channel)
@@ -3702,7 +4471,20 @@ func (*stream) FnTestNamedArgsSingleEnum(ctx context.Context, myArg types.NamedA
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3735,7 +4517,7 @@ func GetDataType(ctx context.Context, text string) (*types.RaysData, error) {
 	return &casted, nil
 }
 
-func (*stream) GetDataType(ctx context.Context, text string) <-chan types.RaysData {
+func (*stream) GetDataType(ctx context.Context, text string) <-chan StreamValue[types.RaysData, stream_types.RaysData] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"text": text},
 	}
@@ -3743,7 +4525,7 @@ func (*stream) GetDataType(ctx context.Context, text string) <-chan types.RaysDa
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.RaysData)
+	channel := make(chan StreamValue[types.RaysData, stream_types.RaysData])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "GetDataType", encoded)
 	if err != nil {
 		close(channel)
@@ -3764,7 +4546,20 @@ func (*stream) GetDataType(ctx context.Context, text string) <-chan types.RaysDa
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.RaysData)
+				if result.HasData {
+					data := (*result.Data).(types.RaysData)
+					channel <- StreamValue[types.RaysData, stream_types.RaysData]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.RaysData)
+					channel <- StreamValue[types.RaysData, stream_types.RaysData]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3797,7 +4592,7 @@ func GetOrderInfo(ctx context.Context, email types.Email) (*types.OrderInfo, err
 	return &casted, nil
 }
 
-func (*stream) GetOrderInfo(ctx context.Context, email types.Email) <-chan types.OrderInfo {
+func (*stream) GetOrderInfo(ctx context.Context, email types.Email) <-chan StreamValue[types.OrderInfo, stream_types.OrderInfo] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"email": email},
 	}
@@ -3805,7 +4600,7 @@ func (*stream) GetOrderInfo(ctx context.Context, email types.Email) <-chan types
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.OrderInfo)
+	channel := make(chan StreamValue[types.OrderInfo, stream_types.OrderInfo])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "GetOrderInfo", encoded)
 	if err != nil {
 		close(channel)
@@ -3826,7 +4621,20 @@ func (*stream) GetOrderInfo(ctx context.Context, email types.Email) <-chan types
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.OrderInfo)
+				if result.HasData {
+					data := (*result.Data).(types.OrderInfo)
+					channel <- StreamValue[types.OrderInfo, stream_types.OrderInfo]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.OrderInfo)
+					channel <- StreamValue[types.OrderInfo, stream_types.OrderInfo]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3859,7 +4667,7 @@ func GetQuery(ctx context.Context, query string) (*types.SearchParams, error) {
 	return &casted, nil
 }
 
-func (*stream) GetQuery(ctx context.Context, query string) <-chan types.SearchParams {
+func (*stream) GetQuery(ctx context.Context, query string) <-chan StreamValue[types.SearchParams, stream_types.SearchParams] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"query": query},
 	}
@@ -3867,7 +4675,7 @@ func (*stream) GetQuery(ctx context.Context, query string) <-chan types.SearchPa
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.SearchParams)
+	channel := make(chan StreamValue[types.SearchParams, stream_types.SearchParams])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "GetQuery", encoded)
 	if err != nil {
 		close(channel)
@@ -3888,7 +4696,20 @@ func (*stream) GetQuery(ctx context.Context, query string) <-chan types.SearchPa
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.SearchParams)
+				if result.HasData {
+					data := (*result.Data).(types.SearchParams)
+					channel <- StreamValue[types.SearchParams, stream_types.SearchParams]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.SearchParams)
+					channel <- StreamValue[types.SearchParams, stream_types.SearchParams]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3921,7 +4742,7 @@ func InOutEnumMapKey(ctx context.Context, i1 map[types.MapKey]string, i2 map[typ
 	return &casted, nil
 }
 
-func (*stream) InOutEnumMapKey(ctx context.Context, i1 map[types.MapKey]string, i2 map[types.MapKey]string) <-chan map[types.MapKey]string {
+func (*stream) InOutEnumMapKey(ctx context.Context, i1 map[types.MapKey]string, i2 map[types.MapKey]string) <-chan StreamValue[map[types.MapKey]string, map[*types.MapKey]*string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"i1": i1, "i2": i2},
 	}
@@ -3929,7 +4750,7 @@ func (*stream) InOutEnumMapKey(ctx context.Context, i1 map[types.MapKey]string, 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan map[types.MapKey]string)
+	channel := make(chan StreamValue[map[types.MapKey]string, map[*types.MapKey]*string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "InOutEnumMapKey", encoded)
 	if err != nil {
 		close(channel)
@@ -3950,7 +4771,20 @@ func (*stream) InOutEnumMapKey(ctx context.Context, i1 map[types.MapKey]string, 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(map[types.MapKey]string)
+				if result.HasData {
+					data := (*result.Data).(map[types.MapKey]string)
+					channel <- StreamValue[map[types.MapKey]string, map[*types.MapKey]*string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(map[*types.MapKey]*string)
+					channel <- StreamValue[map[types.MapKey]string, map[*types.MapKey]*string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -3983,7 +4817,7 @@ func InOutLiteralStringUnionMapKey(ctx context.Context, i1 map[types.Union__stri
 	return &casted, nil
 }
 
-func (*stream) InOutLiteralStringUnionMapKey(ctx context.Context, i1 map[types.Union__string_one__string_two__string_three__string_four]string, i2 map[types.Union__string_one__string_two__string_three__string_four]string) <-chan map[types.Union__string_one__string_two__string_three__string_four]string {
+func (*stream) InOutLiteralStringUnionMapKey(ctx context.Context, i1 map[types.Union__string_one__string_two__string_three__string_four]string, i2 map[types.Union__string_one__string_two__string_three__string_four]string) <-chan StreamValue[map[types.Union__string_one__string_two__string_three__string_four]string, map[*types.Union__string_one__string_two__string_three__string_four]*string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"i1": i1, "i2": i2},
 	}
@@ -3991,7 +4825,7 @@ func (*stream) InOutLiteralStringUnionMapKey(ctx context.Context, i1 map[types.U
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan map[types.Union__string_one__string_two__string_three__string_four]string)
+	channel := make(chan StreamValue[map[types.Union__string_one__string_two__string_three__string_four]string, map[*types.Union__string_one__string_two__string_three__string_four]*string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "InOutLiteralStringUnionMapKey", encoded)
 	if err != nil {
 		close(channel)
@@ -4012,7 +4846,20 @@ func (*stream) InOutLiteralStringUnionMapKey(ctx context.Context, i1 map[types.U
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(map[types.Union__string_one__string_two__string_three__string_four]string)
+				if result.HasData {
+					data := (*result.Data).(map[types.Union__string_one__string_two__string_three__string_four]string)
+					channel <- StreamValue[map[types.Union__string_one__string_two__string_three__string_four]string, map[*types.Union__string_one__string_two__string_three__string_four]*string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(map[*types.Union__string_one__string_two__string_three__string_four]*string)
+					channel <- StreamValue[map[types.Union__string_one__string_two__string_three__string_four]string, map[*types.Union__string_one__string_two__string_three__string_four]*string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4045,7 +4892,7 @@ func InOutSingleLiteralStringMapKey(ctx context.Context, m map[string]string) (*
 	return &casted, nil
 }
 
-func (*stream) InOutSingleLiteralStringMapKey(ctx context.Context, m map[string]string) <-chan map[string]string {
+func (*stream) InOutSingleLiteralStringMapKey(ctx context.Context, m map[string]string) <-chan StreamValue[map[string]string, map[*string]*string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"m": m},
 	}
@@ -4053,7 +4900,7 @@ func (*stream) InOutSingleLiteralStringMapKey(ctx context.Context, m map[string]
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan map[string]string)
+	channel := make(chan StreamValue[map[string]string, map[*string]*string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "InOutSingleLiteralStringMapKey", encoded)
 	if err != nil {
 		close(channel)
@@ -4074,7 +4921,20 @@ func (*stream) InOutSingleLiteralStringMapKey(ctx context.Context, m map[string]
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(map[string]string)
+				if result.HasData {
+					data := (*result.Data).(map[string]string)
+					channel <- StreamValue[map[string]string, map[*string]*string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(map[*string]*string)
+					channel <- StreamValue[map[string]string, map[*string]*string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4107,7 +4967,7 @@ func JsonTypeAliasCycle(ctx context.Context, input types.JsonValue) (*types.Json
 	return &casted, nil
 }
 
-func (*stream) JsonTypeAliasCycle(ctx context.Context, input types.JsonValue) <-chan types.JsonValue {
+func (*stream) JsonTypeAliasCycle(ctx context.Context, input types.JsonValue) <-chan StreamValue[types.JsonValue, types.JsonValue] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -4115,7 +4975,7 @@ func (*stream) JsonTypeAliasCycle(ctx context.Context, input types.JsonValue) <-
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.JsonValue)
+	channel := make(chan StreamValue[types.JsonValue, types.JsonValue])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "JsonTypeAliasCycle", encoded)
 	if err != nil {
 		close(channel)
@@ -4136,7 +4996,20 @@ func (*stream) JsonTypeAliasCycle(ctx context.Context, input types.JsonValue) <-
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.JsonValue)
+				if result.HasData {
+					data := (*result.Data).(types.JsonValue)
+					channel <- StreamValue[types.JsonValue, types.JsonValue]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.JsonValue)
+					channel <- StreamValue[types.JsonValue, types.JsonValue]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4169,7 +5042,7 @@ func LiteralUnionsTest(ctx context.Context, input string) (*types.Union__int_1__
 	return &casted, nil
 }
 
-func (*stream) LiteralUnionsTest(ctx context.Context, input string) <-chan types.Union__int_1__bool_true__string_string_output {
+func (*stream) LiteralUnionsTest(ctx context.Context, input string) <-chan StreamValue[types.Union__int_1__bool_true__string_string_output, types.Union__int_1__bool_true__string_string_output] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -4177,7 +5050,7 @@ func (*stream) LiteralUnionsTest(ctx context.Context, input string) <-chan types
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Union__int_1__bool_true__string_string_output)
+	channel := make(chan StreamValue[types.Union__int_1__bool_true__string_string_output, types.Union__int_1__bool_true__string_string_output])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "LiteralUnionsTest", encoded)
 	if err != nil {
 		close(channel)
@@ -4198,7 +5071,20 @@ func (*stream) LiteralUnionsTest(ctx context.Context, input string) <-chan types
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Union__int_1__bool_true__string_string_output)
+				if result.HasData {
+					data := (*result.Data).(types.Union__int_1__bool_true__string_string_output)
+					channel <- StreamValue[types.Union__int_1__bool_true__string_string_output, types.Union__int_1__bool_true__string_string_output]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.Union__int_1__bool_true__string_string_output)
+					channel <- StreamValue[types.Union__int_1__bool_true__string_string_output, types.Union__int_1__bool_true__string_string_output]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4231,7 +5117,7 @@ func MakeBlockConstraint(ctx context.Context) (*types.Checked[types.BlockConstra
 	return &casted, nil
 }
 
-func (*stream) MakeBlockConstraint(ctx context.Context) <-chan types.Checked[types.BlockConstraint] {
+func (*stream) MakeBlockConstraint(ctx context.Context) <-chan StreamValue[types.Checked[types.BlockConstraint], types.Checked[stream_types.BlockConstraint]] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{},
 	}
@@ -4239,7 +5125,7 @@ func (*stream) MakeBlockConstraint(ctx context.Context) <-chan types.Checked[typ
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Checked[types.BlockConstraint])
+	channel := make(chan StreamValue[types.Checked[types.BlockConstraint], types.Checked[stream_types.BlockConstraint]])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "MakeBlockConstraint", encoded)
 	if err != nil {
 		close(channel)
@@ -4260,7 +5146,20 @@ func (*stream) MakeBlockConstraint(ctx context.Context) <-chan types.Checked[typ
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Checked[types.BlockConstraint])
+				if result.HasData {
+					data := (*result.Data).(types.Checked[types.BlockConstraint])
+					channel <- StreamValue[types.Checked[types.BlockConstraint], types.Checked[stream_types.BlockConstraint]]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.Checked[stream_types.BlockConstraint])
+					channel <- StreamValue[types.Checked[types.BlockConstraint], types.Checked[stream_types.BlockConstraint]]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4293,7 +5192,7 @@ func MakeClassWithBlockDone(ctx context.Context) (*types.ClassWithBlockDone, err
 	return &casted, nil
 }
 
-func (*stream) MakeClassWithBlockDone(ctx context.Context) <-chan types.ClassWithBlockDone {
+func (*stream) MakeClassWithBlockDone(ctx context.Context) <-chan StreamValue[types.ClassWithBlockDone, types.ClassWithBlockDone] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{},
 	}
@@ -4301,7 +5200,7 @@ func (*stream) MakeClassWithBlockDone(ctx context.Context) <-chan types.ClassWit
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.ClassWithBlockDone)
+	channel := make(chan StreamValue[types.ClassWithBlockDone, types.ClassWithBlockDone])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "MakeClassWithBlockDone", encoded)
 	if err != nil {
 		close(channel)
@@ -4322,7 +5221,20 @@ func (*stream) MakeClassWithBlockDone(ctx context.Context) <-chan types.ClassWit
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.ClassWithBlockDone)
+				if result.HasData {
+					data := (*result.Data).(types.ClassWithBlockDone)
+					channel <- StreamValue[types.ClassWithBlockDone, types.ClassWithBlockDone]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.ClassWithBlockDone)
+					channel <- StreamValue[types.ClassWithBlockDone, types.ClassWithBlockDone]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4355,7 +5267,7 @@ func MakeClassWithExternalDone(ctx context.Context) (*types.ClassWithoutDone, er
 	return &casted, nil
 }
 
-func (*stream) MakeClassWithExternalDone(ctx context.Context) <-chan types.ClassWithoutDone {
+func (*stream) MakeClassWithExternalDone(ctx context.Context) <-chan StreamValue[types.ClassWithoutDone, types.ClassWithoutDone] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{},
 	}
@@ -4363,7 +5275,7 @@ func (*stream) MakeClassWithExternalDone(ctx context.Context) <-chan types.Class
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.ClassWithoutDone)
+	channel := make(chan StreamValue[types.ClassWithoutDone, types.ClassWithoutDone])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "MakeClassWithExternalDone", encoded)
 	if err != nil {
 		close(channel)
@@ -4384,7 +5296,20 @@ func (*stream) MakeClassWithExternalDone(ctx context.Context) <-chan types.Class
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.ClassWithoutDone)
+				if result.HasData {
+					data := (*result.Data).(types.ClassWithoutDone)
+					channel <- StreamValue[types.ClassWithoutDone, types.ClassWithoutDone]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.ClassWithoutDone)
+					channel <- StreamValue[types.ClassWithoutDone, types.ClassWithoutDone]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4417,7 +5342,7 @@ func MakeNestedBlockConstraint(ctx context.Context) (*types.NestedBlockConstrain
 	return &casted, nil
 }
 
-func (*stream) MakeNestedBlockConstraint(ctx context.Context) <-chan types.NestedBlockConstraint {
+func (*stream) MakeNestedBlockConstraint(ctx context.Context) <-chan StreamValue[types.NestedBlockConstraint, stream_types.NestedBlockConstraint] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{},
 	}
@@ -4425,7 +5350,7 @@ func (*stream) MakeNestedBlockConstraint(ctx context.Context) <-chan types.Neste
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.NestedBlockConstraint)
+	channel := make(chan StreamValue[types.NestedBlockConstraint, stream_types.NestedBlockConstraint])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "MakeNestedBlockConstraint", encoded)
 	if err != nil {
 		close(channel)
@@ -4446,7 +5371,20 @@ func (*stream) MakeNestedBlockConstraint(ctx context.Context) <-chan types.Neste
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.NestedBlockConstraint)
+				if result.HasData {
+					data := (*result.Data).(types.NestedBlockConstraint)
+					channel <- StreamValue[types.NestedBlockConstraint, stream_types.NestedBlockConstraint]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.NestedBlockConstraint)
+					channel <- StreamValue[types.NestedBlockConstraint, stream_types.NestedBlockConstraint]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4479,7 +5417,7 @@ func MakeSemanticContainer(ctx context.Context) (*types.SemanticContainer, error
 	return &casted, nil
 }
 
-func (*stream) MakeSemanticContainer(ctx context.Context) <-chan types.SemanticContainer {
+func (*stream) MakeSemanticContainer(ctx context.Context) <-chan StreamValue[types.SemanticContainer, stream_types.SemanticContainer] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{},
 	}
@@ -4487,7 +5425,7 @@ func (*stream) MakeSemanticContainer(ctx context.Context) <-chan types.SemanticC
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.SemanticContainer)
+	channel := make(chan StreamValue[types.SemanticContainer, stream_types.SemanticContainer])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "MakeSemanticContainer", encoded)
 	if err != nil {
 		close(channel)
@@ -4508,7 +5446,20 @@ func (*stream) MakeSemanticContainer(ctx context.Context) <-chan types.SemanticC
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.SemanticContainer)
+				if result.HasData {
+					data := (*result.Data).(types.SemanticContainer)
+					channel <- StreamValue[types.SemanticContainer, stream_types.SemanticContainer]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.SemanticContainer)
+					channel <- StreamValue[types.SemanticContainer, stream_types.SemanticContainer]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4541,7 +5492,7 @@ func MapAlias(ctx context.Context, m map[string][]string) (*map[string][]string,
 	return &casted, nil
 }
 
-func (*stream) MapAlias(ctx context.Context, m map[string][]string) <-chan map[string][]string {
+func (*stream) MapAlias(ctx context.Context, m map[string][]string) <-chan StreamValue[map[string][]string, map[*string][]string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"m": m},
 	}
@@ -4549,7 +5500,7 @@ func (*stream) MapAlias(ctx context.Context, m map[string][]string) <-chan map[s
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan map[string][]string)
+	channel := make(chan StreamValue[map[string][]string, map[*string][]string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "MapAlias", encoded)
 	if err != nil {
 		close(channel)
@@ -4570,7 +5521,20 @@ func (*stream) MapAlias(ctx context.Context, m map[string][]string) <-chan map[s
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(map[string][]string)
+				if result.HasData {
+					data := (*result.Data).(map[string][]string)
+					channel <- StreamValue[map[string][]string, map[*string][]string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(map[*string][]string)
+					channel <- StreamValue[map[string][]string, map[*string][]string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4603,7 +5567,7 @@ func MergeAliasAttributes(ctx context.Context, money int64) (*types.MergeAttrs, 
 	return &casted, nil
 }
 
-func (*stream) MergeAliasAttributes(ctx context.Context, money int64) <-chan types.MergeAttrs {
+func (*stream) MergeAliasAttributes(ctx context.Context, money int64) <-chan StreamValue[types.MergeAttrs, stream_types.MergeAttrs] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"money": money},
 	}
@@ -4611,7 +5575,7 @@ func (*stream) MergeAliasAttributes(ctx context.Context, money int64) <-chan typ
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.MergeAttrs)
+	channel := make(chan StreamValue[types.MergeAttrs, stream_types.MergeAttrs])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "MergeAliasAttributes", encoded)
 	if err != nil {
 		close(channel)
@@ -4632,7 +5596,20 @@ func (*stream) MergeAliasAttributes(ctx context.Context, money int64) <-chan typ
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.MergeAttrs)
+				if result.HasData {
+					data := (*result.Data).(types.MergeAttrs)
+					channel <- StreamValue[types.MergeAttrs, stream_types.MergeAttrs]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.MergeAttrs)
+					channel <- StreamValue[types.MergeAttrs, stream_types.MergeAttrs]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4665,7 +5642,7 @@ func MyFunc(ctx context.Context, input string) (*types.DynamicOutput, error) {
 	return &casted, nil
 }
 
-func (*stream) MyFunc(ctx context.Context, input string) <-chan types.DynamicOutput {
+func (*stream) MyFunc(ctx context.Context, input string) <-chan StreamValue[types.DynamicOutput, stream_types.DynamicOutput] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -4673,7 +5650,7 @@ func (*stream) MyFunc(ctx context.Context, input string) <-chan types.DynamicOut
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.DynamicOutput)
+	channel := make(chan StreamValue[types.DynamicOutput, stream_types.DynamicOutput])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "MyFunc", encoded)
 	if err != nil {
 		close(channel)
@@ -4694,7 +5671,20 @@ func (*stream) MyFunc(ctx context.Context, input string) <-chan types.DynamicOut
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.DynamicOutput)
+				if result.HasData {
+					data := (*result.Data).(types.DynamicOutput)
+					channel <- StreamValue[types.DynamicOutput, stream_types.DynamicOutput]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.DynamicOutput)
+					channel <- StreamValue[types.DynamicOutput, stream_types.DynamicOutput]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4727,7 +5717,7 @@ func NestedAlias(ctx context.Context, c types.Union__int__string__bool__float__L
 	return &casted, nil
 }
 
-func (*stream) NestedAlias(ctx context.Context, c types.Union__int__string__bool__float__List__string__Map__string_List__string) <-chan types.Union__int__string__bool__float__List__string__Map__string_List__string {
+func (*stream) NestedAlias(ctx context.Context, c types.Union__int__string__bool__float__List__string__Map__string_List__string) <-chan StreamValue[types.Union__int__string__bool__float__List__string__Map__string_List__string, types.Union__int__string__bool__float__List__string__Map__string_List__string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"c": c},
 	}
@@ -4735,7 +5725,7 @@ func (*stream) NestedAlias(ctx context.Context, c types.Union__int__string__bool
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Union__int__string__bool__float__List__string__Map__string_List__string)
+	channel := make(chan StreamValue[types.Union__int__string__bool__float__List__string__Map__string_List__string, types.Union__int__string__bool__float__List__string__Map__string_List__string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "NestedAlias", encoded)
 	if err != nil {
 		close(channel)
@@ -4756,7 +5746,20 @@ func (*stream) NestedAlias(ctx context.Context, c types.Union__int__string__bool
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Union__int__string__bool__float__List__string__Map__string_List__string)
+				if result.HasData {
+					data := (*result.Data).(types.Union__int__string__bool__float__List__string__Map__string_List__string)
+					channel <- StreamValue[types.Union__int__string__bool__float__List__string__Map__string_List__string, types.Union__int__string__bool__float__List__string__Map__string_List__string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.Union__int__string__bool__float__List__string__Map__string_List__string)
+					channel <- StreamValue[types.Union__int__string__bool__float__List__string__Map__string_List__string, types.Union__int__string__bool__float__List__string__Map__string_List__string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4789,7 +5792,7 @@ func NullLiteralClassHello(ctx context.Context, s string) (*types.ClassForNullLi
 	return &casted, nil
 }
 
-func (*stream) NullLiteralClassHello(ctx context.Context, s string) <-chan types.ClassForNullLiteral {
+func (*stream) NullLiteralClassHello(ctx context.Context, s string) <-chan StreamValue[types.ClassForNullLiteral, stream_types.ClassForNullLiteral] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"s": s},
 	}
@@ -4797,7 +5800,7 @@ func (*stream) NullLiteralClassHello(ctx context.Context, s string) <-chan types
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.ClassForNullLiteral)
+	channel := make(chan StreamValue[types.ClassForNullLiteral, stream_types.ClassForNullLiteral])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "NullLiteralClassHello", encoded)
 	if err != nil {
 		close(channel)
@@ -4818,7 +5821,20 @@ func (*stream) NullLiteralClassHello(ctx context.Context, s string) <-chan types
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.ClassForNullLiteral)
+				if result.HasData {
+					data := (*result.Data).(types.ClassForNullLiteral)
+					channel <- StreamValue[types.ClassForNullLiteral, stream_types.ClassForNullLiteral]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.ClassForNullLiteral)
+					channel <- StreamValue[types.ClassForNullLiteral, stream_types.ClassForNullLiteral]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4851,7 +5867,7 @@ func OpenAIWithAnthropicResponseHello(ctx context.Context, s string) (*string, e
 	return &casted, nil
 }
 
-func (*stream) OpenAIWithAnthropicResponseHello(ctx context.Context, s string) <-chan string {
+func (*stream) OpenAIWithAnthropicResponseHello(ctx context.Context, s string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"s": s},
 	}
@@ -4859,7 +5875,7 @@ func (*stream) OpenAIWithAnthropicResponseHello(ctx context.Context, s string) <
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "OpenAIWithAnthropicResponseHello", encoded)
 	if err != nil {
 		close(channel)
@@ -4880,7 +5896,20 @@ func (*stream) OpenAIWithAnthropicResponseHello(ctx context.Context, s string) <
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4913,7 +5942,7 @@ func OptionalTest_Function(ctx context.Context, input string) (*[]*types.Optiona
 	return &casted, nil
 }
 
-func (*stream) OptionalTest_Function(ctx context.Context, input string) <-chan []*types.OptionalTest_ReturnType {
+func (*stream) OptionalTest_Function(ctx context.Context, input string) <-chan StreamValue[[]*types.OptionalTest_ReturnType, []*stream_types.OptionalTest_ReturnType] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -4921,7 +5950,7 @@ func (*stream) OptionalTest_Function(ctx context.Context, input string) <-chan [
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan []*types.OptionalTest_ReturnType)
+	channel := make(chan StreamValue[[]*types.OptionalTest_ReturnType, []*stream_types.OptionalTest_ReturnType])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "OptionalTest_Function", encoded)
 	if err != nil {
 		close(channel)
@@ -4942,7 +5971,20 @@ func (*stream) OptionalTest_Function(ctx context.Context, input string) <-chan [
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).([]*types.OptionalTest_ReturnType)
+				if result.HasData {
+					data := (*result.Data).([]*types.OptionalTest_ReturnType)
+					channel <- StreamValue[[]*types.OptionalTest_ReturnType, []*stream_types.OptionalTest_ReturnType]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).([]*stream_types.OptionalTest_ReturnType)
+					channel <- StreamValue[[]*types.OptionalTest_ReturnType, []*stream_types.OptionalTest_ReturnType]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -4975,7 +6017,7 @@ func PredictAge(ctx context.Context, name string) (*types.FooAny, error) {
 	return &casted, nil
 }
 
-func (*stream) PredictAge(ctx context.Context, name string) <-chan types.FooAny {
+func (*stream) PredictAge(ctx context.Context, name string) <-chan StreamValue[types.FooAny, stream_types.FooAny] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"name": name},
 	}
@@ -4983,7 +6025,7 @@ func (*stream) PredictAge(ctx context.Context, name string) <-chan types.FooAny 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.FooAny)
+	channel := make(chan StreamValue[types.FooAny, stream_types.FooAny])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "PredictAge", encoded)
 	if err != nil {
 		close(channel)
@@ -5004,7 +6046,20 @@ func (*stream) PredictAge(ctx context.Context, name string) <-chan types.FooAny 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.FooAny)
+				if result.HasData {
+					data := (*result.Data).(types.FooAny)
+					channel <- StreamValue[types.FooAny, stream_types.FooAny]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.FooAny)
+					channel <- StreamValue[types.FooAny, stream_types.FooAny]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5037,7 +6092,7 @@ func PredictAgeBare(ctx context.Context, inp string) (*types.Checked[int64], err
 	return &casted, nil
 }
 
-func (*stream) PredictAgeBare(ctx context.Context, inp string) <-chan types.Checked[int64] {
+func (*stream) PredictAgeBare(ctx context.Context, inp string) <-chan StreamValue[types.Checked[int64], types.Checked[int64]] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"inp": inp},
 	}
@@ -5045,7 +6100,7 @@ func (*stream) PredictAgeBare(ctx context.Context, inp string) <-chan types.Chec
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Checked[int64])
+	channel := make(chan StreamValue[types.Checked[int64], types.Checked[int64]])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "PredictAgeBare", encoded)
 	if err != nil {
 		close(channel)
@@ -5066,7 +6121,20 @@ func (*stream) PredictAgeBare(ctx context.Context, inp string) <-chan types.Chec
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Checked[int64])
+				if result.HasData {
+					data := (*result.Data).(types.Checked[int64])
+					channel <- StreamValue[types.Checked[int64], types.Checked[int64]]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.Checked[int64])
+					channel <- StreamValue[types.Checked[int64], types.Checked[int64]]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5099,7 +6167,7 @@ func PrimitiveAlias(ctx context.Context, p types.Union__int__string__bool__float
 	return &casted, nil
 }
 
-func (*stream) PrimitiveAlias(ctx context.Context, p types.Union__int__string__bool__float) <-chan types.Union__int__string__bool__float {
+func (*stream) PrimitiveAlias(ctx context.Context, p types.Union__int__string__bool__float) <-chan StreamValue[types.Union__int__string__bool__float, types.Union__int__string__bool__float] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"p": p},
 	}
@@ -5107,7 +6175,7 @@ func (*stream) PrimitiveAlias(ctx context.Context, p types.Union__int__string__b
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Union__int__string__bool__float)
+	channel := make(chan StreamValue[types.Union__int__string__bool__float, types.Union__int__string__bool__float])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "PrimitiveAlias", encoded)
 	if err != nil {
 		close(channel)
@@ -5128,7 +6196,20 @@ func (*stream) PrimitiveAlias(ctx context.Context, p types.Union__int__string__b
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Union__int__string__bool__float)
+				if result.HasData {
+					data := (*result.Data).(types.Union__int__string__bool__float)
+					channel <- StreamValue[types.Union__int__string__bool__float, types.Union__int__string__bool__float]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.Union__int__string__bool__float)
+					channel <- StreamValue[types.Union__int__string__bool__float, types.Union__int__string__bool__float]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5161,7 +6242,7 @@ func PromptTestClaude(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) PromptTestClaude(ctx context.Context, input string) <-chan string {
+func (*stream) PromptTestClaude(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -5169,7 +6250,7 @@ func (*stream) PromptTestClaude(ctx context.Context, input string) <-chan string
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "PromptTestClaude", encoded)
 	if err != nil {
 		close(channel)
@@ -5190,7 +6271,20 @@ func (*stream) PromptTestClaude(ctx context.Context, input string) <-chan string
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5223,7 +6317,7 @@ func PromptTestClaudeChat(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) PromptTestClaudeChat(ctx context.Context, input string) <-chan string {
+func (*stream) PromptTestClaudeChat(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -5231,7 +6325,7 @@ func (*stream) PromptTestClaudeChat(ctx context.Context, input string) <-chan st
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "PromptTestClaudeChat", encoded)
 	if err != nil {
 		close(channel)
@@ -5252,7 +6346,20 @@ func (*stream) PromptTestClaudeChat(ctx context.Context, input string) <-chan st
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5285,7 +6392,7 @@ func PromptTestClaudeChatNoSystem(ctx context.Context, input string) (*string, e
 	return &casted, nil
 }
 
-func (*stream) PromptTestClaudeChatNoSystem(ctx context.Context, input string) <-chan string {
+func (*stream) PromptTestClaudeChatNoSystem(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -5293,7 +6400,7 @@ func (*stream) PromptTestClaudeChatNoSystem(ctx context.Context, input string) <
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "PromptTestClaudeChatNoSystem", encoded)
 	if err != nil {
 		close(channel)
@@ -5314,7 +6421,20 @@ func (*stream) PromptTestClaudeChatNoSystem(ctx context.Context, input string) <
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5347,7 +6467,7 @@ func PromptTestOpenAI(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) PromptTestOpenAI(ctx context.Context, input string) <-chan string {
+func (*stream) PromptTestOpenAI(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -5355,7 +6475,7 @@ func (*stream) PromptTestOpenAI(ctx context.Context, input string) <-chan string
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "PromptTestOpenAI", encoded)
 	if err != nil {
 		close(channel)
@@ -5376,7 +6496,20 @@ func (*stream) PromptTestOpenAI(ctx context.Context, input string) <-chan string
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5409,7 +6542,7 @@ func PromptTestOpenAIChat(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) PromptTestOpenAIChat(ctx context.Context, input string) <-chan string {
+func (*stream) PromptTestOpenAIChat(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -5417,7 +6550,7 @@ func (*stream) PromptTestOpenAIChat(ctx context.Context, input string) <-chan st
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "PromptTestOpenAIChat", encoded)
 	if err != nil {
 		close(channel)
@@ -5438,7 +6571,20 @@ func (*stream) PromptTestOpenAIChat(ctx context.Context, input string) <-chan st
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5471,7 +6617,7 @@ func PromptTestOpenAIChatNoSystem(ctx context.Context, input string) (*string, e
 	return &casted, nil
 }
 
-func (*stream) PromptTestOpenAIChatNoSystem(ctx context.Context, input string) <-chan string {
+func (*stream) PromptTestOpenAIChatNoSystem(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -5479,7 +6625,7 @@ func (*stream) PromptTestOpenAIChatNoSystem(ctx context.Context, input string) <
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "PromptTestOpenAIChatNoSystem", encoded)
 	if err != nil {
 		close(channel)
@@ -5500,7 +6646,20 @@ func (*stream) PromptTestOpenAIChatNoSystem(ctx context.Context, input string) <
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5533,7 +6692,7 @@ func PromptTestStreaming(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) PromptTestStreaming(ctx context.Context, input string) <-chan string {
+func (*stream) PromptTestStreaming(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -5541,7 +6700,7 @@ func (*stream) PromptTestStreaming(ctx context.Context, input string) <-chan str
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "PromptTestStreaming", encoded)
 	if err != nil {
 		close(channel)
@@ -5562,7 +6721,20 @@ func (*stream) PromptTestStreaming(ctx context.Context, input string) <-chan str
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5595,7 +6767,7 @@ func RecursiveAliasCycle(ctx context.Context, input types.RecAliasOne) (*types.R
 	return &casted, nil
 }
 
-func (*stream) RecursiveAliasCycle(ctx context.Context, input types.RecAliasOne) <-chan types.RecAliasOne {
+func (*stream) RecursiveAliasCycle(ctx context.Context, input types.RecAliasOne) <-chan StreamValue[types.RecAliasOne, types.RecAliasOne] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -5603,7 +6775,7 @@ func (*stream) RecursiveAliasCycle(ctx context.Context, input types.RecAliasOne)
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.RecAliasOne)
+	channel := make(chan StreamValue[types.RecAliasOne, types.RecAliasOne])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "RecursiveAliasCycle", encoded)
 	if err != nil {
 		close(channel)
@@ -5624,7 +6796,20 @@ func (*stream) RecursiveAliasCycle(ctx context.Context, input types.RecAliasOne)
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.RecAliasOne)
+				if result.HasData {
+					data := (*result.Data).(types.RecAliasOne)
+					channel <- StreamValue[types.RecAliasOne, types.RecAliasOne]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.RecAliasOne)
+					channel <- StreamValue[types.RecAliasOne, types.RecAliasOne]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5657,7 +6842,7 @@ func RecursiveClassWithAliasIndirection(ctx context.Context, cls types.NodeWithA
 	return &casted, nil
 }
 
-func (*stream) RecursiveClassWithAliasIndirection(ctx context.Context, cls types.NodeWithAliasIndirection) <-chan types.NodeWithAliasIndirection {
+func (*stream) RecursiveClassWithAliasIndirection(ctx context.Context, cls types.NodeWithAliasIndirection) <-chan StreamValue[types.NodeWithAliasIndirection, stream_types.NodeWithAliasIndirection] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"cls": cls},
 	}
@@ -5665,7 +6850,7 @@ func (*stream) RecursiveClassWithAliasIndirection(ctx context.Context, cls types
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.NodeWithAliasIndirection)
+	channel := make(chan StreamValue[types.NodeWithAliasIndirection, stream_types.NodeWithAliasIndirection])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "RecursiveClassWithAliasIndirection", encoded)
 	if err != nil {
 		close(channel)
@@ -5686,7 +6871,20 @@ func (*stream) RecursiveClassWithAliasIndirection(ctx context.Context, cls types
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.NodeWithAliasIndirection)
+				if result.HasData {
+					data := (*result.Data).(types.NodeWithAliasIndirection)
+					channel <- StreamValue[types.NodeWithAliasIndirection, stream_types.NodeWithAliasIndirection]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.NodeWithAliasIndirection)
+					channel <- StreamValue[types.NodeWithAliasIndirection, stream_types.NodeWithAliasIndirection]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5719,7 +6917,7 @@ func RecursiveUnionTest(ctx context.Context, input types.RecursiveUnion) (*types
 	return &casted, nil
 }
 
-func (*stream) RecursiveUnionTest(ctx context.Context, input types.RecursiveUnion) <-chan types.RecursiveUnion {
+func (*stream) RecursiveUnionTest(ctx context.Context, input types.RecursiveUnion) <-chan StreamValue[types.RecursiveUnion, types.RecursiveUnion] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -5727,7 +6925,7 @@ func (*stream) RecursiveUnionTest(ctx context.Context, input types.RecursiveUnio
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.RecursiveUnion)
+	channel := make(chan StreamValue[types.RecursiveUnion, types.RecursiveUnion])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "RecursiveUnionTest", encoded)
 	if err != nil {
 		close(channel)
@@ -5748,7 +6946,20 @@ func (*stream) RecursiveUnionTest(ctx context.Context, input types.RecursiveUnio
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.RecursiveUnion)
+				if result.HasData {
+					data := (*result.Data).(types.RecursiveUnion)
+					channel <- StreamValue[types.RecursiveUnion, types.RecursiveUnion]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.RecursiveUnion)
+					channel <- StreamValue[types.RecursiveUnion, types.RecursiveUnion]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5781,7 +6992,7 @@ func ReturnAliasWithMergedAttributes(ctx context.Context, money int64) (*types.C
 	return &casted, nil
 }
 
-func (*stream) ReturnAliasWithMergedAttributes(ctx context.Context, money int64) <-chan types.Checked[int64] {
+func (*stream) ReturnAliasWithMergedAttributes(ctx context.Context, money int64) <-chan StreamValue[types.Checked[int64], types.Checked[int64]] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"money": money},
 	}
@@ -5789,7 +7000,7 @@ func (*stream) ReturnAliasWithMergedAttributes(ctx context.Context, money int64)
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Checked[int64])
+	channel := make(chan StreamValue[types.Checked[int64], types.Checked[int64]])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ReturnAliasWithMergedAttributes", encoded)
 	if err != nil {
 		close(channel)
@@ -5810,7 +7021,20 @@ func (*stream) ReturnAliasWithMergedAttributes(ctx context.Context, money int64)
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Checked[int64])
+				if result.HasData {
+					data := (*result.Data).(types.Checked[int64])
+					channel <- StreamValue[types.Checked[int64], types.Checked[int64]]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.Checked[int64])
+					channel <- StreamValue[types.Checked[int64], types.Checked[int64]]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5843,7 +7067,7 @@ func ReturnFailingAssert(ctx context.Context, inp int64) (*int64, error) {
 	return &casted, nil
 }
 
-func (*stream) ReturnFailingAssert(ctx context.Context, inp int64) <-chan int64 {
+func (*stream) ReturnFailingAssert(ctx context.Context, inp int64) <-chan StreamValue[int64, int64] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"inp": inp},
 	}
@@ -5851,7 +7075,7 @@ func (*stream) ReturnFailingAssert(ctx context.Context, inp int64) <-chan int64 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan int64)
+	channel := make(chan StreamValue[int64, int64])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ReturnFailingAssert", encoded)
 	if err != nil {
 		close(channel)
@@ -5872,7 +7096,20 @@ func (*stream) ReturnFailingAssert(ctx context.Context, inp int64) <-chan int64 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(int64)
+				if result.HasData {
+					data := (*result.Data).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5905,7 +7142,7 @@ func ReturnJsonEntry(ctx context.Context, s string) (*types.JsonTemplate, error)
 	return &casted, nil
 }
 
-func (*stream) ReturnJsonEntry(ctx context.Context, s string) <-chan types.JsonTemplate {
+func (*stream) ReturnJsonEntry(ctx context.Context, s string) <-chan StreamValue[types.JsonTemplate, types.JsonTemplate] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"s": s},
 	}
@@ -5913,7 +7150,7 @@ func (*stream) ReturnJsonEntry(ctx context.Context, s string) <-chan types.JsonT
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.JsonTemplate)
+	channel := make(chan StreamValue[types.JsonTemplate, types.JsonTemplate])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ReturnJsonEntry", encoded)
 	if err != nil {
 		close(channel)
@@ -5934,7 +7171,20 @@ func (*stream) ReturnJsonEntry(ctx context.Context, s string) <-chan types.JsonT
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.JsonTemplate)
+				if result.HasData {
+					data := (*result.Data).(types.JsonTemplate)
+					channel <- StreamValue[types.JsonTemplate, types.JsonTemplate]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.JsonTemplate)
+					channel <- StreamValue[types.JsonTemplate, types.JsonTemplate]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -5967,7 +7217,7 @@ func ReturnMalformedConstraints(ctx context.Context, a int64) (*types.MalformedC
 	return &casted, nil
 }
 
-func (*stream) ReturnMalformedConstraints(ctx context.Context, a int64) <-chan types.MalformedConstraints {
+func (*stream) ReturnMalformedConstraints(ctx context.Context, a int64) <-chan StreamValue[types.MalformedConstraints, stream_types.MalformedConstraints] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"a": a},
 	}
@@ -5975,7 +7225,7 @@ func (*stream) ReturnMalformedConstraints(ctx context.Context, a int64) <-chan t
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.MalformedConstraints)
+	channel := make(chan StreamValue[types.MalformedConstraints, stream_types.MalformedConstraints])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "ReturnMalformedConstraints", encoded)
 	if err != nil {
 		close(channel)
@@ -5996,7 +7246,20 @@ func (*stream) ReturnMalformedConstraints(ctx context.Context, a int64) <-chan t
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.MalformedConstraints)
+				if result.HasData {
+					data := (*result.Data).(types.MalformedConstraints)
+					channel <- StreamValue[types.MalformedConstraints, stream_types.MalformedConstraints]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.MalformedConstraints)
+					channel <- StreamValue[types.MalformedConstraints, stream_types.MalformedConstraints]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6029,7 +7292,7 @@ func SchemaDescriptions(ctx context.Context, input string) (*types.Schema, error
 	return &casted, nil
 }
 
-func (*stream) SchemaDescriptions(ctx context.Context, input string) <-chan types.Schema {
+func (*stream) SchemaDescriptions(ctx context.Context, input string) <-chan StreamValue[types.Schema, stream_types.Schema] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -6037,7 +7300,7 @@ func (*stream) SchemaDescriptions(ctx context.Context, input string) <-chan type
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Schema)
+	channel := make(chan StreamValue[types.Schema, stream_types.Schema])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "SchemaDescriptions", encoded)
 	if err != nil {
 		close(channel)
@@ -6058,7 +7321,20 @@ func (*stream) SchemaDescriptions(ctx context.Context, input string) <-chan type
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Schema)
+				if result.HasData {
+					data := (*result.Data).(types.Schema)
+					channel <- StreamValue[types.Schema, stream_types.Schema]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.Schema)
+					channel <- StreamValue[types.Schema, stream_types.Schema]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6091,7 +7367,7 @@ func SimpleRecursiveListAlias(ctx context.Context, input types.RecursiveListAlia
 	return &casted, nil
 }
 
-func (*stream) SimpleRecursiveListAlias(ctx context.Context, input types.RecursiveListAlias) <-chan types.RecursiveListAlias {
+func (*stream) SimpleRecursiveListAlias(ctx context.Context, input types.RecursiveListAlias) <-chan StreamValue[types.RecursiveListAlias, types.RecursiveListAlias] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -6099,7 +7375,7 @@ func (*stream) SimpleRecursiveListAlias(ctx context.Context, input types.Recursi
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.RecursiveListAlias)
+	channel := make(chan StreamValue[types.RecursiveListAlias, types.RecursiveListAlias])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "SimpleRecursiveListAlias", encoded)
 	if err != nil {
 		close(channel)
@@ -6120,7 +7396,20 @@ func (*stream) SimpleRecursiveListAlias(ctx context.Context, input types.Recursi
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.RecursiveListAlias)
+				if result.HasData {
+					data := (*result.Data).(types.RecursiveListAlias)
+					channel <- StreamValue[types.RecursiveListAlias, types.RecursiveListAlias]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.RecursiveListAlias)
+					channel <- StreamValue[types.RecursiveListAlias, types.RecursiveListAlias]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6153,7 +7442,7 @@ func SimpleRecursiveMapAlias(ctx context.Context, input types.RecursiveMapAlias)
 	return &casted, nil
 }
 
-func (*stream) SimpleRecursiveMapAlias(ctx context.Context, input types.RecursiveMapAlias) <-chan types.RecursiveMapAlias {
+func (*stream) SimpleRecursiveMapAlias(ctx context.Context, input types.RecursiveMapAlias) <-chan StreamValue[types.RecursiveMapAlias, types.RecursiveMapAlias] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -6161,7 +7450,7 @@ func (*stream) SimpleRecursiveMapAlias(ctx context.Context, input types.Recursiv
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.RecursiveMapAlias)
+	channel := make(chan StreamValue[types.RecursiveMapAlias, types.RecursiveMapAlias])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "SimpleRecursiveMapAlias", encoded)
 	if err != nil {
 		close(channel)
@@ -6182,7 +7471,20 @@ func (*stream) SimpleRecursiveMapAlias(ctx context.Context, input types.Recursiv
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.RecursiveMapAlias)
+				if result.HasData {
+					data := (*result.Data).(types.RecursiveMapAlias)
+					channel <- StreamValue[types.RecursiveMapAlias, types.RecursiveMapAlias]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(types.RecursiveMapAlias)
+					channel <- StreamValue[types.RecursiveMapAlias, types.RecursiveMapAlias]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6215,7 +7517,7 @@ func StreamBigNumbers(ctx context.Context, digits int64) (*types.BigNumbers, err
 	return &casted, nil
 }
 
-func (*stream) StreamBigNumbers(ctx context.Context, digits int64) <-chan types.BigNumbers {
+func (*stream) StreamBigNumbers(ctx context.Context, digits int64) <-chan StreamValue[types.BigNumbers, stream_types.BigNumbers] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"digits": digits},
 	}
@@ -6223,7 +7525,7 @@ func (*stream) StreamBigNumbers(ctx context.Context, digits int64) <-chan types.
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.BigNumbers)
+	channel := make(chan StreamValue[types.BigNumbers, stream_types.BigNumbers])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "StreamBigNumbers", encoded)
 	if err != nil {
 		close(channel)
@@ -6244,7 +7546,20 @@ func (*stream) StreamBigNumbers(ctx context.Context, digits int64) <-chan types.
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.BigNumbers)
+				if result.HasData {
+					data := (*result.Data).(types.BigNumbers)
+					channel <- StreamValue[types.BigNumbers, stream_types.BigNumbers]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.BigNumbers)
+					channel <- StreamValue[types.BigNumbers, stream_types.BigNumbers]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6277,7 +7592,7 @@ func StreamFailingAssertion(ctx context.Context, theme string, length int64) (*t
 	return &casted, nil
 }
 
-func (*stream) StreamFailingAssertion(ctx context.Context, theme string, length int64) <-chan types.TwoStoriesOneTitle {
+func (*stream) StreamFailingAssertion(ctx context.Context, theme string, length int64) <-chan StreamValue[types.TwoStoriesOneTitle, stream_types.TwoStoriesOneTitle] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"theme": theme, "length": length},
 	}
@@ -6285,7 +7600,7 @@ func (*stream) StreamFailingAssertion(ctx context.Context, theme string, length 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.TwoStoriesOneTitle)
+	channel := make(chan StreamValue[types.TwoStoriesOneTitle, stream_types.TwoStoriesOneTitle])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "StreamFailingAssertion", encoded)
 	if err != nil {
 		close(channel)
@@ -6306,7 +7621,20 @@ func (*stream) StreamFailingAssertion(ctx context.Context, theme string, length 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.TwoStoriesOneTitle)
+				if result.HasData {
+					data := (*result.Data).(types.TwoStoriesOneTitle)
+					channel <- StreamValue[types.TwoStoriesOneTitle, stream_types.TwoStoriesOneTitle]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.TwoStoriesOneTitle)
+					channel <- StreamValue[types.TwoStoriesOneTitle, stream_types.TwoStoriesOneTitle]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6339,7 +7667,7 @@ func StreamFailingCheck(ctx context.Context, theme string, length int64) (*types
 	return &casted, nil
 }
 
-func (*stream) StreamFailingCheck(ctx context.Context, theme string, length int64) <-chan types.TwoStoriesOneTitleCheck {
+func (*stream) StreamFailingCheck(ctx context.Context, theme string, length int64) <-chan StreamValue[types.TwoStoriesOneTitleCheck, stream_types.TwoStoriesOneTitleCheck] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"theme": theme, "length": length},
 	}
@@ -6347,7 +7675,7 @@ func (*stream) StreamFailingCheck(ctx context.Context, theme string, length int6
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.TwoStoriesOneTitleCheck)
+	channel := make(chan StreamValue[types.TwoStoriesOneTitleCheck, stream_types.TwoStoriesOneTitleCheck])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "StreamFailingCheck", encoded)
 	if err != nil {
 		close(channel)
@@ -6368,7 +7696,20 @@ func (*stream) StreamFailingCheck(ctx context.Context, theme string, length int6
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.TwoStoriesOneTitleCheck)
+				if result.HasData {
+					data := (*result.Data).(types.TwoStoriesOneTitleCheck)
+					channel <- StreamValue[types.TwoStoriesOneTitleCheck, stream_types.TwoStoriesOneTitleCheck]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.TwoStoriesOneTitleCheck)
+					channel <- StreamValue[types.TwoStoriesOneTitleCheck, stream_types.TwoStoriesOneTitleCheck]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6401,7 +7742,7 @@ func StreamOneBigNumber(ctx context.Context, digits int64) (*int64, error) {
 	return &casted, nil
 }
 
-func (*stream) StreamOneBigNumber(ctx context.Context, digits int64) <-chan int64 {
+func (*stream) StreamOneBigNumber(ctx context.Context, digits int64) <-chan StreamValue[int64, int64] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"digits": digits},
 	}
@@ -6409,7 +7750,7 @@ func (*stream) StreamOneBigNumber(ctx context.Context, digits int64) <-chan int6
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan int64)
+	channel := make(chan StreamValue[int64, int64])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "StreamOneBigNumber", encoded)
 	if err != nil {
 		close(channel)
@@ -6430,7 +7771,20 @@ func (*stream) StreamOneBigNumber(ctx context.Context, digits int64) <-chan int6
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(int64)
+				if result.HasData {
+					data := (*result.Data).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6463,7 +7817,7 @@ func StreamUnionIntegers(ctx context.Context, digits int64) (*[]types.Union__int
 	return &casted, nil
 }
 
-func (*stream) StreamUnionIntegers(ctx context.Context, digits int64) <-chan []types.Union__int__string {
+func (*stream) StreamUnionIntegers(ctx context.Context, digits int64) <-chan StreamValue[[]types.Union__int__string, []types.Union__int__string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"digits": digits},
 	}
@@ -6471,7 +7825,7 @@ func (*stream) StreamUnionIntegers(ctx context.Context, digits int64) <-chan []t
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan []types.Union__int__string)
+	channel := make(chan StreamValue[[]types.Union__int__string, []types.Union__int__string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "StreamUnionIntegers", encoded)
 	if err != nil {
 		close(channel)
@@ -6492,7 +7846,20 @@ func (*stream) StreamUnionIntegers(ctx context.Context, digits int64) <-chan []t
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).([]types.Union__int__string)
+				if result.HasData {
+					data := (*result.Data).([]types.Union__int__string)
+					channel <- StreamValue[[]types.Union__int__string, []types.Union__int__string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).([]types.Union__int__string)
+					channel <- StreamValue[[]types.Union__int__string, []types.Union__int__string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6525,7 +7892,7 @@ func StreamingCompoundNumbers(ctx context.Context, digits int64, yapping bool) (
 	return &casted, nil
 }
 
-func (*stream) StreamingCompoundNumbers(ctx context.Context, digits int64, yapping bool) <-chan types.CompoundBigNumbers {
+func (*stream) StreamingCompoundNumbers(ctx context.Context, digits int64, yapping bool) <-chan StreamValue[types.CompoundBigNumbers, stream_types.CompoundBigNumbers] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"digits": digits, "yapping": yapping},
 	}
@@ -6533,7 +7900,7 @@ func (*stream) StreamingCompoundNumbers(ctx context.Context, digits int64, yappi
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.CompoundBigNumbers)
+	channel := make(chan StreamValue[types.CompoundBigNumbers, stream_types.CompoundBigNumbers])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "StreamingCompoundNumbers", encoded)
 	if err != nil {
 		close(channel)
@@ -6554,7 +7921,20 @@ func (*stream) StreamingCompoundNumbers(ctx context.Context, digits int64, yappi
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.CompoundBigNumbers)
+				if result.HasData {
+					data := (*result.Data).(types.CompoundBigNumbers)
+					channel <- StreamValue[types.CompoundBigNumbers, stream_types.CompoundBigNumbers]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.CompoundBigNumbers)
+					channel <- StreamValue[types.CompoundBigNumbers, stream_types.CompoundBigNumbers]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6587,7 +7967,7 @@ func StructureDocument1559(ctx context.Context, document_txt string) (*types.Doc
 	return &casted, nil
 }
 
-func (*stream) StructureDocument1559(ctx context.Context, document_txt string) <-chan types.Document1559 {
+func (*stream) StructureDocument1559(ctx context.Context, document_txt string) <-chan StreamValue[types.Document1559, stream_types.Document1559] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"document_txt": document_txt},
 	}
@@ -6595,7 +7975,7 @@ func (*stream) StructureDocument1559(ctx context.Context, document_txt string) <
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Document1559)
+	channel := make(chan StreamValue[types.Document1559, stream_types.Document1559])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "StructureDocument1559", encoded)
 	if err != nil {
 		close(channel)
@@ -6616,7 +7996,20 @@ func (*stream) StructureDocument1559(ctx context.Context, document_txt string) <
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Document1559)
+				if result.HasData {
+					data := (*result.Data).(types.Document1559)
+					channel <- StreamValue[types.Document1559, stream_types.Document1559]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.Document1559)
+					channel <- StreamValue[types.Document1559, stream_types.Document1559]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6649,7 +8042,7 @@ func TakeRecAliasDep(ctx context.Context, input types.RecursiveAliasDependency) 
 	return &casted, nil
 }
 
-func (*stream) TakeRecAliasDep(ctx context.Context, input types.RecursiveAliasDependency) <-chan types.RecursiveAliasDependency {
+func (*stream) TakeRecAliasDep(ctx context.Context, input types.RecursiveAliasDependency) <-chan StreamValue[types.RecursiveAliasDependency, stream_types.RecursiveAliasDependency] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -6657,7 +8050,7 @@ func (*stream) TakeRecAliasDep(ctx context.Context, input types.RecursiveAliasDe
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.RecursiveAliasDependency)
+	channel := make(chan StreamValue[types.RecursiveAliasDependency, stream_types.RecursiveAliasDependency])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TakeRecAliasDep", encoded)
 	if err != nil {
 		close(channel)
@@ -6678,7 +8071,20 @@ func (*stream) TakeRecAliasDep(ctx context.Context, input types.RecursiveAliasDe
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.RecursiveAliasDependency)
+				if result.HasData {
+					data := (*result.Data).(types.RecursiveAliasDependency)
+					channel <- StreamValue[types.RecursiveAliasDependency, stream_types.RecursiveAliasDependency]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.RecursiveAliasDependency)
+					channel <- StreamValue[types.RecursiveAliasDependency, stream_types.RecursiveAliasDependency]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6711,7 +8117,7 @@ func TellStory(ctx context.Context, story string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TellStory(ctx context.Context, story string) <-chan string {
+func (*stream) TellStory(ctx context.Context, story string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"story": story},
 	}
@@ -6719,7 +8125,7 @@ func (*stream) TellStory(ctx context.Context, story string) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TellStory", encoded)
 	if err != nil {
 		close(channel)
@@ -6740,7 +8146,20 @@ func (*stream) TellStory(ctx context.Context, story string) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6773,7 +8192,7 @@ func TestAnthropic(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestAnthropic(ctx context.Context, input string) <-chan string {
+func (*stream) TestAnthropic(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -6781,7 +8200,7 @@ func (*stream) TestAnthropic(ctx context.Context, input string) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAnthropic", encoded)
 	if err != nil {
 		close(channel)
@@ -6802,7 +8221,20 @@ func (*stream) TestAnthropic(ctx context.Context, input string) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6835,7 +8267,7 @@ func TestAnthropicShorthand(ctx context.Context, input string) (*string, error) 
 	return &casted, nil
 }
 
-func (*stream) TestAnthropicShorthand(ctx context.Context, input string) <-chan string {
+func (*stream) TestAnthropicShorthand(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -6843,7 +8275,7 @@ func (*stream) TestAnthropicShorthand(ctx context.Context, input string) <-chan 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAnthropicShorthand", encoded)
 	if err != nil {
 		close(channel)
@@ -6864,7 +8296,20 @@ func (*stream) TestAnthropicShorthand(ctx context.Context, input string) <-chan 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6897,7 +8342,7 @@ func TestAws(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestAws(ctx context.Context, input string) <-chan string {
+func (*stream) TestAws(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -6905,7 +8350,7 @@ func (*stream) TestAws(ctx context.Context, input string) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAws", encoded)
 	if err != nil {
 		close(channel)
@@ -6926,7 +8371,20 @@ func (*stream) TestAws(ctx context.Context, input string) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -6959,7 +8417,7 @@ func TestAwsClaude37(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestAwsClaude37(ctx context.Context, input string) <-chan string {
+func (*stream) TestAwsClaude37(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -6967,7 +8425,7 @@ func (*stream) TestAwsClaude37(ctx context.Context, input string) <-chan string 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAwsClaude37", encoded)
 	if err != nil {
 		close(channel)
@@ -6988,7 +8446,20 @@ func (*stream) TestAwsClaude37(ctx context.Context, input string) <-chan string 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7021,7 +8492,7 @@ func TestAwsInferenceProfile(ctx context.Context, input string) (*string, error)
 	return &casted, nil
 }
 
-func (*stream) TestAwsInferenceProfile(ctx context.Context, input string) <-chan string {
+func (*stream) TestAwsInferenceProfile(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7029,7 +8500,7 @@ func (*stream) TestAwsInferenceProfile(ctx context.Context, input string) <-chan
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAwsInferenceProfile", encoded)
 	if err != nil {
 		close(channel)
@@ -7050,7 +8521,20 @@ func (*stream) TestAwsInferenceProfile(ctx context.Context, input string) <-chan
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7083,7 +8567,7 @@ func TestAwsInvalidAccessKey(ctx context.Context, input string) (*string, error)
 	return &casted, nil
 }
 
-func (*stream) TestAwsInvalidAccessKey(ctx context.Context, input string) <-chan string {
+func (*stream) TestAwsInvalidAccessKey(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7091,7 +8575,7 @@ func (*stream) TestAwsInvalidAccessKey(ctx context.Context, input string) <-chan
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAwsInvalidAccessKey", encoded)
 	if err != nil {
 		close(channel)
@@ -7112,7 +8596,20 @@ func (*stream) TestAwsInvalidAccessKey(ctx context.Context, input string) <-chan
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7145,7 +8642,7 @@ func TestAwsInvalidProfile(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestAwsInvalidProfile(ctx context.Context, input string) <-chan string {
+func (*stream) TestAwsInvalidProfile(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7153,7 +8650,7 @@ func (*stream) TestAwsInvalidProfile(ctx context.Context, input string) <-chan s
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAwsInvalidProfile", encoded)
 	if err != nil {
 		close(channel)
@@ -7174,7 +8671,20 @@ func (*stream) TestAwsInvalidProfile(ctx context.Context, input string) <-chan s
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7207,7 +8717,7 @@ func TestAwsInvalidRegion(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestAwsInvalidRegion(ctx context.Context, input string) <-chan string {
+func (*stream) TestAwsInvalidRegion(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7215,7 +8725,7 @@ func (*stream) TestAwsInvalidRegion(ctx context.Context, input string) <-chan st
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAwsInvalidRegion", encoded)
 	if err != nil {
 		close(channel)
@@ -7236,7 +8746,20 @@ func (*stream) TestAwsInvalidRegion(ctx context.Context, input string) <-chan st
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7269,7 +8792,7 @@ func TestAwsInvalidSessionToken(ctx context.Context, input string) (*string, err
 	return &casted, nil
 }
 
-func (*stream) TestAwsInvalidSessionToken(ctx context.Context, input string) <-chan string {
+func (*stream) TestAwsInvalidSessionToken(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7277,7 +8800,7 @@ func (*stream) TestAwsInvalidSessionToken(ctx context.Context, input string) <-c
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAwsInvalidSessionToken", encoded)
 	if err != nil {
 		close(channel)
@@ -7298,7 +8821,20 @@ func (*stream) TestAwsInvalidSessionToken(ctx context.Context, input string) <-c
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7331,7 +8867,7 @@ func TestAzure(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestAzure(ctx context.Context, input string) <-chan string {
+func (*stream) TestAzure(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7339,7 +8875,7 @@ func (*stream) TestAzure(ctx context.Context, input string) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAzure", encoded)
 	if err != nil {
 		close(channel)
@@ -7360,7 +8896,20 @@ func (*stream) TestAzure(ctx context.Context, input string) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7393,7 +8942,7 @@ func TestAzureFailure(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestAzureFailure(ctx context.Context, input string) <-chan string {
+func (*stream) TestAzureFailure(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7401,7 +8950,7 @@ func (*stream) TestAzureFailure(ctx context.Context, input string) <-chan string
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAzureFailure", encoded)
 	if err != nil {
 		close(channel)
@@ -7422,7 +8971,20 @@ func (*stream) TestAzureFailure(ctx context.Context, input string) <-chan string
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7455,7 +9017,7 @@ func TestAzureO1NoMaxTokens(ctx context.Context, input string) (*string, error) 
 	return &casted, nil
 }
 
-func (*stream) TestAzureO1NoMaxTokens(ctx context.Context, input string) <-chan string {
+func (*stream) TestAzureO1NoMaxTokens(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7463,7 +9025,7 @@ func (*stream) TestAzureO1NoMaxTokens(ctx context.Context, input string) <-chan 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAzureO1NoMaxTokens", encoded)
 	if err != nil {
 		close(channel)
@@ -7484,7 +9046,20 @@ func (*stream) TestAzureO1NoMaxTokens(ctx context.Context, input string) <-chan 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7517,7 +9092,7 @@ func TestAzureO1WithMaxCompletionTokens(ctx context.Context, input string) (*str
 	return &casted, nil
 }
 
-func (*stream) TestAzureO1WithMaxCompletionTokens(ctx context.Context, input string) <-chan string {
+func (*stream) TestAzureO1WithMaxCompletionTokens(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7525,7 +9100,7 @@ func (*stream) TestAzureO1WithMaxCompletionTokens(ctx context.Context, input str
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAzureO1WithMaxCompletionTokens", encoded)
 	if err != nil {
 		close(channel)
@@ -7546,7 +9121,20 @@ func (*stream) TestAzureO1WithMaxCompletionTokens(ctx context.Context, input str
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7579,7 +9167,7 @@ func TestAzureO1WithMaxTokens(ctx context.Context, input string) (*string, error
 	return &casted, nil
 }
 
-func (*stream) TestAzureO1WithMaxTokens(ctx context.Context, input string) <-chan string {
+func (*stream) TestAzureO1WithMaxTokens(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7587,7 +9175,7 @@ func (*stream) TestAzureO1WithMaxTokens(ctx context.Context, input string) <-cha
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAzureO1WithMaxTokens", encoded)
 	if err != nil {
 		close(channel)
@@ -7608,7 +9196,20 @@ func (*stream) TestAzureO1WithMaxTokens(ctx context.Context, input string) <-cha
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7641,7 +9242,7 @@ func TestAzureO3NoMaxTokens(ctx context.Context, input string) (*string, error) 
 	return &casted, nil
 }
 
-func (*stream) TestAzureO3NoMaxTokens(ctx context.Context, input string) <-chan string {
+func (*stream) TestAzureO3NoMaxTokens(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7649,7 +9250,7 @@ func (*stream) TestAzureO3NoMaxTokens(ctx context.Context, input string) <-chan 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAzureO3NoMaxTokens", encoded)
 	if err != nil {
 		close(channel)
@@ -7670,7 +9271,20 @@ func (*stream) TestAzureO3NoMaxTokens(ctx context.Context, input string) <-chan 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7703,7 +9317,7 @@ func TestAzureO3WithMaxCompletionTokens(ctx context.Context, input string) (*str
 	return &casted, nil
 }
 
-func (*stream) TestAzureO3WithMaxCompletionTokens(ctx context.Context, input string) <-chan string {
+func (*stream) TestAzureO3WithMaxCompletionTokens(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7711,7 +9325,7 @@ func (*stream) TestAzureO3WithMaxCompletionTokens(ctx context.Context, input str
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAzureO3WithMaxCompletionTokens", encoded)
 	if err != nil {
 		close(channel)
@@ -7732,7 +9346,20 @@ func (*stream) TestAzureO3WithMaxCompletionTokens(ctx context.Context, input str
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7765,7 +9392,7 @@ func TestAzureWithMaxTokens(ctx context.Context, input string) (*string, error) 
 	return &casted, nil
 }
 
-func (*stream) TestAzureWithMaxTokens(ctx context.Context, input string) <-chan string {
+func (*stream) TestAzureWithMaxTokens(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7773,7 +9400,7 @@ func (*stream) TestAzureWithMaxTokens(ctx context.Context, input string) <-chan 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestAzureWithMaxTokens", encoded)
 	if err != nil {
 		close(channel)
@@ -7794,7 +9421,20 @@ func (*stream) TestAzureWithMaxTokens(ctx context.Context, input string) <-chan 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7827,7 +9467,7 @@ func TestCaching(ctx context.Context, input string, not_cached string) (*string,
 	return &casted, nil
 }
 
-func (*stream) TestCaching(ctx context.Context, input string, not_cached string) <-chan string {
+func (*stream) TestCaching(ctx context.Context, input string, not_cached string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input, "not_cached": not_cached},
 	}
@@ -7835,7 +9475,7 @@ func (*stream) TestCaching(ctx context.Context, input string, not_cached string)
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestCaching", encoded)
 	if err != nil {
 		close(channel)
@@ -7856,7 +9496,20 @@ func (*stream) TestCaching(ctx context.Context, input string, not_cached string)
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7889,7 +9542,7 @@ func TestFallbackClient(ctx context.Context) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestFallbackClient(ctx context.Context) <-chan string {
+func (*stream) TestFallbackClient(ctx context.Context) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{},
 	}
@@ -7897,7 +9550,7 @@ func (*stream) TestFallbackClient(ctx context.Context) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFallbackClient", encoded)
 	if err != nil {
 		close(channel)
@@ -7918,7 +9571,20 @@ func (*stream) TestFallbackClient(ctx context.Context) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -7951,7 +9617,7 @@ func TestFallbackStrategy(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestFallbackStrategy(ctx context.Context, input string) <-chan string {
+func (*stream) TestFallbackStrategy(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -7959,7 +9625,7 @@ func (*stream) TestFallbackStrategy(ctx context.Context, input string) <-chan st
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFallbackStrategy", encoded)
 	if err != nil {
 		close(channel)
@@ -7980,7 +9646,20 @@ func (*stream) TestFallbackStrategy(ctx context.Context, input string) <-chan st
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8013,7 +9692,7 @@ func TestFallbackToShorthand(ctx context.Context, input string) (*string, error)
 	return &casted, nil
 }
 
-func (*stream) TestFallbackToShorthand(ctx context.Context, input string) <-chan string {
+func (*stream) TestFallbackToShorthand(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -8021,7 +9700,7 @@ func (*stream) TestFallbackToShorthand(ctx context.Context, input string) <-chan
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFallbackToShorthand", encoded)
 	if err != nil {
 		close(channel)
@@ -8042,7 +9721,20 @@ func (*stream) TestFallbackToShorthand(ctx context.Context, input string) <-chan
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8075,7 +9767,7 @@ func TestFnNamedArgsSingleBool(ctx context.Context, myBool bool) (*string, error
 	return &casted, nil
 }
 
-func (*stream) TestFnNamedArgsSingleBool(ctx context.Context, myBool bool) <-chan string {
+func (*stream) TestFnNamedArgsSingleBool(ctx context.Context, myBool bool) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myBool": myBool},
 	}
@@ -8083,7 +9775,7 @@ func (*stream) TestFnNamedArgsSingleBool(ctx context.Context, myBool bool) <-cha
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFnNamedArgsSingleBool", encoded)
 	if err != nil {
 		close(channel)
@@ -8104,7 +9796,20 @@ func (*stream) TestFnNamedArgsSingleBool(ctx context.Context, myBool bool) <-cha
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8137,7 +9842,7 @@ func TestFnNamedArgsSingleClass(ctx context.Context, myArg types.NamedArgsSingle
 	return &casted, nil
 }
 
-func (*stream) TestFnNamedArgsSingleClass(ctx context.Context, myArg types.NamedArgsSingleClass) <-chan string {
+func (*stream) TestFnNamedArgsSingleClass(ctx context.Context, myArg types.NamedArgsSingleClass) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myArg": myArg},
 	}
@@ -8145,7 +9850,7 @@ func (*stream) TestFnNamedArgsSingleClass(ctx context.Context, myArg types.Named
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFnNamedArgsSingleClass", encoded)
 	if err != nil {
 		close(channel)
@@ -8166,7 +9871,20 @@ func (*stream) TestFnNamedArgsSingleClass(ctx context.Context, myArg types.Named
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8199,7 +9917,7 @@ func TestFnNamedArgsSingleEnumList(ctx context.Context, myArg []types.NamedArgsS
 	return &casted, nil
 }
 
-func (*stream) TestFnNamedArgsSingleEnumList(ctx context.Context, myArg []types.NamedArgsSingleEnumList) <-chan string {
+func (*stream) TestFnNamedArgsSingleEnumList(ctx context.Context, myArg []types.NamedArgsSingleEnumList) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myArg": myArg},
 	}
@@ -8207,7 +9925,7 @@ func (*stream) TestFnNamedArgsSingleEnumList(ctx context.Context, myArg []types.
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFnNamedArgsSingleEnumList", encoded)
 	if err != nil {
 		close(channel)
@@ -8228,7 +9946,20 @@ func (*stream) TestFnNamedArgsSingleEnumList(ctx context.Context, myArg []types.
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8261,7 +9992,7 @@ func TestFnNamedArgsSingleFloat(ctx context.Context, myFloat float64) (*string, 
 	return &casted, nil
 }
 
-func (*stream) TestFnNamedArgsSingleFloat(ctx context.Context, myFloat float64) <-chan string {
+func (*stream) TestFnNamedArgsSingleFloat(ctx context.Context, myFloat float64) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myFloat": myFloat},
 	}
@@ -8269,7 +10000,7 @@ func (*stream) TestFnNamedArgsSingleFloat(ctx context.Context, myFloat float64) 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFnNamedArgsSingleFloat", encoded)
 	if err != nil {
 		close(channel)
@@ -8290,7 +10021,20 @@ func (*stream) TestFnNamedArgsSingleFloat(ctx context.Context, myFloat float64) 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8323,7 +10067,7 @@ func TestFnNamedArgsSingleInt(ctx context.Context, myInt int64) (*string, error)
 	return &casted, nil
 }
 
-func (*stream) TestFnNamedArgsSingleInt(ctx context.Context, myInt int64) <-chan string {
+func (*stream) TestFnNamedArgsSingleInt(ctx context.Context, myInt int64) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myInt": myInt},
 	}
@@ -8331,7 +10075,7 @@ func (*stream) TestFnNamedArgsSingleInt(ctx context.Context, myInt int64) <-chan
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFnNamedArgsSingleInt", encoded)
 	if err != nil {
 		close(channel)
@@ -8352,7 +10096,20 @@ func (*stream) TestFnNamedArgsSingleInt(ctx context.Context, myInt int64) <-chan
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8385,7 +10142,7 @@ func TestFnNamedArgsSingleMapStringToClass(ctx context.Context, myMap map[string
 	return &casted, nil
 }
 
-func (*stream) TestFnNamedArgsSingleMapStringToClass(ctx context.Context, myMap map[string]types.StringToClassEntry) <-chan map[string]types.StringToClassEntry {
+func (*stream) TestFnNamedArgsSingleMapStringToClass(ctx context.Context, myMap map[string]types.StringToClassEntry) <-chan StreamValue[map[string]types.StringToClassEntry, map[*string]*stream_types.StringToClassEntry] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myMap": myMap},
 	}
@@ -8393,7 +10150,7 @@ func (*stream) TestFnNamedArgsSingleMapStringToClass(ctx context.Context, myMap 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan map[string]types.StringToClassEntry)
+	channel := make(chan StreamValue[map[string]types.StringToClassEntry, map[*string]*stream_types.StringToClassEntry])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFnNamedArgsSingleMapStringToClass", encoded)
 	if err != nil {
 		close(channel)
@@ -8414,7 +10171,20 @@ func (*stream) TestFnNamedArgsSingleMapStringToClass(ctx context.Context, myMap 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(map[string]types.StringToClassEntry)
+				if result.HasData {
+					data := (*result.Data).(map[string]types.StringToClassEntry)
+					channel <- StreamValue[map[string]types.StringToClassEntry, map[*string]*stream_types.StringToClassEntry]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(map[*string]*stream_types.StringToClassEntry)
+					channel <- StreamValue[map[string]types.StringToClassEntry, map[*string]*stream_types.StringToClassEntry]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8447,7 +10217,7 @@ func TestFnNamedArgsSingleMapStringToMap(ctx context.Context, myMap map[string]m
 	return &casted, nil
 }
 
-func (*stream) TestFnNamedArgsSingleMapStringToMap(ctx context.Context, myMap map[string]map[string]string) <-chan map[string]map[string]string {
+func (*stream) TestFnNamedArgsSingleMapStringToMap(ctx context.Context, myMap map[string]map[string]string) <-chan StreamValue[map[string]map[string]string, map[*string]map[*string]*string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myMap": myMap},
 	}
@@ -8455,7 +10225,7 @@ func (*stream) TestFnNamedArgsSingleMapStringToMap(ctx context.Context, myMap ma
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan map[string]map[string]string)
+	channel := make(chan StreamValue[map[string]map[string]string, map[*string]map[*string]*string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFnNamedArgsSingleMapStringToMap", encoded)
 	if err != nil {
 		close(channel)
@@ -8476,7 +10246,20 @@ func (*stream) TestFnNamedArgsSingleMapStringToMap(ctx context.Context, myMap ma
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(map[string]map[string]string)
+				if result.HasData {
+					data := (*result.Data).(map[string]map[string]string)
+					channel <- StreamValue[map[string]map[string]string, map[*string]map[*string]*string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(map[*string]map[*string]*string)
+					channel <- StreamValue[map[string]map[string]string, map[*string]map[*string]*string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8509,7 +10292,7 @@ func TestFnNamedArgsSingleMapStringToString(ctx context.Context, myMap map[strin
 	return &casted, nil
 }
 
-func (*stream) TestFnNamedArgsSingleMapStringToString(ctx context.Context, myMap map[string]string) <-chan map[string]string {
+func (*stream) TestFnNamedArgsSingleMapStringToString(ctx context.Context, myMap map[string]string) <-chan StreamValue[map[string]string, map[*string]*string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myMap": myMap},
 	}
@@ -8517,7 +10300,7 @@ func (*stream) TestFnNamedArgsSingleMapStringToString(ctx context.Context, myMap
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan map[string]string)
+	channel := make(chan StreamValue[map[string]string, map[*string]*string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFnNamedArgsSingleMapStringToString", encoded)
 	if err != nil {
 		close(channel)
@@ -8538,7 +10321,20 @@ func (*stream) TestFnNamedArgsSingleMapStringToString(ctx context.Context, myMap
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(map[string]string)
+				if result.HasData {
+					data := (*result.Data).(map[string]string)
+					channel <- StreamValue[map[string]string, map[*string]*string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(map[*string]*string)
+					channel <- StreamValue[map[string]string, map[*string]*string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8571,7 +10367,7 @@ func TestFnNamedArgsSingleString(ctx context.Context, myString string) (*string,
 	return &casted, nil
 }
 
-func (*stream) TestFnNamedArgsSingleString(ctx context.Context, myString string) <-chan string {
+func (*stream) TestFnNamedArgsSingleString(ctx context.Context, myString string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myString": myString},
 	}
@@ -8579,7 +10375,7 @@ func (*stream) TestFnNamedArgsSingleString(ctx context.Context, myString string)
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFnNamedArgsSingleString", encoded)
 	if err != nil {
 		close(channel)
@@ -8600,7 +10396,20 @@ func (*stream) TestFnNamedArgsSingleString(ctx context.Context, myString string)
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8633,7 +10442,7 @@ func TestFnNamedArgsSingleStringArray(ctx context.Context, myStringArray []strin
 	return &casted, nil
 }
 
-func (*stream) TestFnNamedArgsSingleStringArray(ctx context.Context, myStringArray []string) <-chan string {
+func (*stream) TestFnNamedArgsSingleStringArray(ctx context.Context, myStringArray []string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myStringArray": myStringArray},
 	}
@@ -8641,7 +10450,7 @@ func (*stream) TestFnNamedArgsSingleStringArray(ctx context.Context, myStringArr
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFnNamedArgsSingleStringArray", encoded)
 	if err != nil {
 		close(channel)
@@ -8662,7 +10471,20 @@ func (*stream) TestFnNamedArgsSingleStringArray(ctx context.Context, myStringArr
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8695,7 +10517,7 @@ func TestFnNamedArgsSingleStringList(ctx context.Context, myArg []string) (*[]st
 	return &casted, nil
 }
 
-func (*stream) TestFnNamedArgsSingleStringList(ctx context.Context, myArg []string) <-chan []string {
+func (*stream) TestFnNamedArgsSingleStringList(ctx context.Context, myArg []string) <-chan StreamValue[[]string, []string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myArg": myArg},
 	}
@@ -8703,7 +10525,7 @@ func (*stream) TestFnNamedArgsSingleStringList(ctx context.Context, myArg []stri
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan []string)
+	channel := make(chan StreamValue[[]string, []string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestFnNamedArgsSingleStringList", encoded)
 	if err != nil {
 		close(channel)
@@ -8724,7 +10546,20 @@ func (*stream) TestFnNamedArgsSingleStringList(ctx context.Context, myArg []stri
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).([]string)
+				if result.HasData {
+					data := (*result.Data).([]string)
+					channel <- StreamValue[[]string, []string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).([]string)
+					channel <- StreamValue[[]string, []string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8757,7 +10592,7 @@ func TestGemini(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestGemini(ctx context.Context, input string) <-chan string {
+func (*stream) TestGemini(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -8765,7 +10600,7 @@ func (*stream) TestGemini(ctx context.Context, input string) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestGemini", encoded)
 	if err != nil {
 		close(channel)
@@ -8786,7 +10621,20 @@ func (*stream) TestGemini(ctx context.Context, input string) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8819,7 +10667,7 @@ func TestGeminiOpenAiGeneric(ctx context.Context) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestGeminiOpenAiGeneric(ctx context.Context) <-chan string {
+func (*stream) TestGeminiOpenAiGeneric(ctx context.Context) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{},
 	}
@@ -8827,7 +10675,7 @@ func (*stream) TestGeminiOpenAiGeneric(ctx context.Context) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestGeminiOpenAiGeneric", encoded)
 	if err != nil {
 		close(channel)
@@ -8848,7 +10696,20 @@ func (*stream) TestGeminiOpenAiGeneric(ctx context.Context) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8881,7 +10742,7 @@ func TestGeminiSystem(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestGeminiSystem(ctx context.Context, input string) <-chan string {
+func (*stream) TestGeminiSystem(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -8889,7 +10750,7 @@ func (*stream) TestGeminiSystem(ctx context.Context, input string) <-chan string
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestGeminiSystem", encoded)
 	if err != nil {
 		close(channel)
@@ -8910,7 +10771,20 @@ func (*stream) TestGeminiSystem(ctx context.Context, input string) <-chan string
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -8943,7 +10817,7 @@ func TestGeminiSystemAsChat(ctx context.Context, input string) (*string, error) 
 	return &casted, nil
 }
 
-func (*stream) TestGeminiSystemAsChat(ctx context.Context, input string) <-chan string {
+func (*stream) TestGeminiSystemAsChat(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -8951,7 +10825,7 @@ func (*stream) TestGeminiSystemAsChat(ctx context.Context, input string) <-chan 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestGeminiSystemAsChat", encoded)
 	if err != nil {
 		close(channel)
@@ -8972,7 +10846,20 @@ func (*stream) TestGeminiSystemAsChat(ctx context.Context, input string) <-chan 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9005,7 +10892,7 @@ func TestGroq(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestGroq(ctx context.Context, input string) <-chan string {
+func (*stream) TestGroq(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -9013,7 +10900,7 @@ func (*stream) TestGroq(ctx context.Context, input string) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestGroq", encoded)
 	if err != nil {
 		close(channel)
@@ -9034,7 +10921,20 @@ func (*stream) TestGroq(ctx context.Context, input string) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9067,7 +10967,7 @@ func TestImageInput(ctx context.Context, img any) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestImageInput(ctx context.Context, img any) <-chan string {
+func (*stream) TestImageInput(ctx context.Context, img any) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"img": img},
 	}
@@ -9075,7 +10975,7 @@ func (*stream) TestImageInput(ctx context.Context, img any) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestImageInput", encoded)
 	if err != nil {
 		close(channel)
@@ -9096,7 +10996,20 @@ func (*stream) TestImageInput(ctx context.Context, img any) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9129,7 +11042,7 @@ func TestImageInputAnthropic(ctx context.Context, img any) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestImageInputAnthropic(ctx context.Context, img any) <-chan string {
+func (*stream) TestImageInputAnthropic(ctx context.Context, img any) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"img": img},
 	}
@@ -9137,7 +11050,7 @@ func (*stream) TestImageInputAnthropic(ctx context.Context, img any) <-chan stri
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestImageInputAnthropic", encoded)
 	if err != nil {
 		close(channel)
@@ -9158,7 +11071,20 @@ func (*stream) TestImageInputAnthropic(ctx context.Context, img any) <-chan stri
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9191,7 +11117,7 @@ func TestImageListInput(ctx context.Context, imgs []any) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestImageListInput(ctx context.Context, imgs []any) <-chan string {
+func (*stream) TestImageListInput(ctx context.Context, imgs []any) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"imgs": imgs},
 	}
@@ -9199,7 +11125,7 @@ func (*stream) TestImageListInput(ctx context.Context, imgs []any) <-chan string
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestImageListInput", encoded)
 	if err != nil {
 		close(channel)
@@ -9220,7 +11146,20 @@ func (*stream) TestImageListInput(ctx context.Context, imgs []any) <-chan string
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9253,7 +11192,7 @@ func TestMemory(ctx context.Context, input string) (*types.TestMemoryOutput, err
 	return &casted, nil
 }
 
-func (*stream) TestMemory(ctx context.Context, input string) <-chan types.TestMemoryOutput {
+func (*stream) TestMemory(ctx context.Context, input string) <-chan StreamValue[types.TestMemoryOutput, stream_types.TestMemoryOutput] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -9261,7 +11200,7 @@ func (*stream) TestMemory(ctx context.Context, input string) <-chan types.TestMe
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.TestMemoryOutput)
+	channel := make(chan StreamValue[types.TestMemoryOutput, stream_types.TestMemoryOutput])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestMemory", encoded)
 	if err != nil {
 		close(channel)
@@ -9282,7 +11221,20 @@ func (*stream) TestMemory(ctx context.Context, input string) <-chan types.TestMe
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.TestMemoryOutput)
+				if result.HasData {
+					data := (*result.Data).(types.TestMemoryOutput)
+					channel <- StreamValue[types.TestMemoryOutput, stream_types.TestMemoryOutput]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.TestMemoryOutput)
+					channel <- StreamValue[types.TestMemoryOutput, stream_types.TestMemoryOutput]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9315,7 +11267,7 @@ func TestMulticlassNamedArgs(ctx context.Context, myArg types.NamedArgsSingleCla
 	return &casted, nil
 }
 
-func (*stream) TestMulticlassNamedArgs(ctx context.Context, myArg types.NamedArgsSingleClass, myArg2 types.NamedArgsSingleClass) <-chan string {
+func (*stream) TestMulticlassNamedArgs(ctx context.Context, myArg types.NamedArgsSingleClass, myArg2 types.NamedArgsSingleClass) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myArg": myArg, "myArg2": myArg2},
 	}
@@ -9323,7 +11275,7 @@ func (*stream) TestMulticlassNamedArgs(ctx context.Context, myArg types.NamedArg
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestMulticlassNamedArgs", encoded)
 	if err != nil {
 		close(channel)
@@ -9344,7 +11296,20 @@ func (*stream) TestMulticlassNamedArgs(ctx context.Context, myArg types.NamedArg
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9377,7 +11342,7 @@ func TestNamedArgsLiteralBool(ctx context.Context, myBool bool) (*string, error)
 	return &casted, nil
 }
 
-func (*stream) TestNamedArgsLiteralBool(ctx context.Context, myBool bool) <-chan string {
+func (*stream) TestNamedArgsLiteralBool(ctx context.Context, myBool bool) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myBool": myBool},
 	}
@@ -9385,7 +11350,7 @@ func (*stream) TestNamedArgsLiteralBool(ctx context.Context, myBool bool) <-chan
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestNamedArgsLiteralBool", encoded)
 	if err != nil {
 		close(channel)
@@ -9406,7 +11371,20 @@ func (*stream) TestNamedArgsLiteralBool(ctx context.Context, myBool bool) <-chan
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9439,7 +11417,7 @@ func TestNamedArgsLiteralInt(ctx context.Context, myInt int) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestNamedArgsLiteralInt(ctx context.Context, myInt int) <-chan string {
+func (*stream) TestNamedArgsLiteralInt(ctx context.Context, myInt int) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myInt": myInt},
 	}
@@ -9447,7 +11425,7 @@ func (*stream) TestNamedArgsLiteralInt(ctx context.Context, myInt int) <-chan st
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestNamedArgsLiteralInt", encoded)
 	if err != nil {
 		close(channel)
@@ -9468,7 +11446,20 @@ func (*stream) TestNamedArgsLiteralInt(ctx context.Context, myInt int) <-chan st
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9501,7 +11492,7 @@ func TestNamedArgsLiteralString(ctx context.Context, myString string) (*string, 
 	return &casted, nil
 }
 
-func (*stream) TestNamedArgsLiteralString(ctx context.Context, myString string) <-chan string {
+func (*stream) TestNamedArgsLiteralString(ctx context.Context, myString string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"myString": myString},
 	}
@@ -9509,7 +11500,7 @@ func (*stream) TestNamedArgsLiteralString(ctx context.Context, myString string) 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestNamedArgsLiteralString", encoded)
 	if err != nil {
 		close(channel)
@@ -9530,7 +11521,20 @@ func (*stream) TestNamedArgsLiteralString(ctx context.Context, myString string) 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9565,7 +11569,7 @@ func TestOllama(ctx context.Context, input string) (**string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestOllama(ctx context.Context, input string) <-chan *string {
+func (*stream) TestOllama(ctx context.Context, input string) <-chan StreamValue[*string, *string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -9573,7 +11577,7 @@ func (*stream) TestOllama(ctx context.Context, input string) <-chan *string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan *string)
+	channel := make(chan StreamValue[*string, *string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOllama", encoded)
 	if err != nil {
 		close(channel)
@@ -9594,7 +11598,20 @@ func (*stream) TestOllama(ctx context.Context, input string) <-chan *string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(*string)
+				if result.HasData {
+					data := (*result.Data).(*string)
+					channel <- StreamValue[*string, *string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(*string)
+					channel <- StreamValue[*string, *string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9627,7 +11644,7 @@ func TestOllamaHaiku(ctx context.Context, input string) (*types.Haiku, error) {
 	return &casted, nil
 }
 
-func (*stream) TestOllamaHaiku(ctx context.Context, input string) <-chan types.Haiku {
+func (*stream) TestOllamaHaiku(ctx context.Context, input string) <-chan StreamValue[types.Haiku, stream_types.Haiku] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -9635,7 +11652,7 @@ func (*stream) TestOllamaHaiku(ctx context.Context, input string) <-chan types.H
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.Haiku)
+	channel := make(chan StreamValue[types.Haiku, stream_types.Haiku])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOllamaHaiku", encoded)
 	if err != nil {
 		close(channel)
@@ -9656,7 +11673,20 @@ func (*stream) TestOllamaHaiku(ctx context.Context, input string) <-chan types.H
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.Haiku)
+				if result.HasData {
+					data := (*result.Data).(types.Haiku)
+					channel <- StreamValue[types.Haiku, stream_types.Haiku]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.Haiku)
+					channel <- StreamValue[types.Haiku, stream_types.Haiku]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9689,7 +11719,7 @@ func TestOpenAI(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestOpenAI(ctx context.Context, input string) <-chan string {
+func (*stream) TestOpenAI(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -9697,7 +11727,7 @@ func (*stream) TestOpenAI(ctx context.Context, input string) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOpenAI", encoded)
 	if err != nil {
 		close(channel)
@@ -9718,7 +11748,20 @@ func (*stream) TestOpenAI(ctx context.Context, input string) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9751,7 +11794,7 @@ func TestOpenAIDummyClient(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestOpenAIDummyClient(ctx context.Context, input string) <-chan string {
+func (*stream) TestOpenAIDummyClient(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -9759,7 +11802,7 @@ func (*stream) TestOpenAIDummyClient(ctx context.Context, input string) <-chan s
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOpenAIDummyClient", encoded)
 	if err != nil {
 		close(channel)
@@ -9780,7 +11823,20 @@ func (*stream) TestOpenAIDummyClient(ctx context.Context, input string) <-chan s
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9813,7 +11869,7 @@ func TestOpenAIGPT4oMini(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestOpenAIGPT4oMini(ctx context.Context, input string) <-chan string {
+func (*stream) TestOpenAIGPT4oMini(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -9821,7 +11877,7 @@ func (*stream) TestOpenAIGPT4oMini(ctx context.Context, input string) <-chan str
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOpenAIGPT4oMini", encoded)
 	if err != nil {
 		close(channel)
@@ -9842,7 +11898,20 @@ func (*stream) TestOpenAIGPT4oMini(ctx context.Context, input string) <-chan str
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9875,7 +11944,7 @@ func TestOpenAILegacyProvider(ctx context.Context, input string) (*string, error
 	return &casted, nil
 }
 
-func (*stream) TestOpenAILegacyProvider(ctx context.Context, input string) <-chan string {
+func (*stream) TestOpenAILegacyProvider(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -9883,7 +11952,7 @@ func (*stream) TestOpenAILegacyProvider(ctx context.Context, input string) <-cha
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOpenAILegacyProvider", encoded)
 	if err != nil {
 		close(channel)
@@ -9904,7 +11973,20 @@ func (*stream) TestOpenAILegacyProvider(ctx context.Context, input string) <-cha
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9937,7 +12019,7 @@ func TestOpenAIO1NoMaxTokens(ctx context.Context, input string) (*string, error)
 	return &casted, nil
 }
 
-func (*stream) TestOpenAIO1NoMaxTokens(ctx context.Context, input string) <-chan string {
+func (*stream) TestOpenAIO1NoMaxTokens(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -9945,7 +12027,7 @@ func (*stream) TestOpenAIO1NoMaxTokens(ctx context.Context, input string) <-chan
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOpenAIO1NoMaxTokens", encoded)
 	if err != nil {
 		close(channel)
@@ -9966,7 +12048,20 @@ func (*stream) TestOpenAIO1NoMaxTokens(ctx context.Context, input string) <-chan
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -9999,7 +12094,7 @@ func TestOpenAIO1WithMaxCompletionTokens(ctx context.Context, input string) (*st
 	return &casted, nil
 }
 
-func (*stream) TestOpenAIO1WithMaxCompletionTokens(ctx context.Context, input string) <-chan string {
+func (*stream) TestOpenAIO1WithMaxCompletionTokens(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -10007,7 +12102,7 @@ func (*stream) TestOpenAIO1WithMaxCompletionTokens(ctx context.Context, input st
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOpenAIO1WithMaxCompletionTokens", encoded)
 	if err != nil {
 		close(channel)
@@ -10028,7 +12123,20 @@ func (*stream) TestOpenAIO1WithMaxCompletionTokens(ctx context.Context, input st
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10061,7 +12169,7 @@ func TestOpenAIO1WithMaxTokens(ctx context.Context, input string) (*string, erro
 	return &casted, nil
 }
 
-func (*stream) TestOpenAIO1WithMaxTokens(ctx context.Context, input string) <-chan string {
+func (*stream) TestOpenAIO1WithMaxTokens(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -10069,7 +12177,7 @@ func (*stream) TestOpenAIO1WithMaxTokens(ctx context.Context, input string) <-ch
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOpenAIO1WithMaxTokens", encoded)
 	if err != nil {
 		close(channel)
@@ -10090,7 +12198,20 @@ func (*stream) TestOpenAIO1WithMaxTokens(ctx context.Context, input string) <-ch
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10123,7 +12244,7 @@ func TestOpenAIShorthand(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestOpenAIShorthand(ctx context.Context, input string) <-chan string {
+func (*stream) TestOpenAIShorthand(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -10131,7 +12252,7 @@ func (*stream) TestOpenAIShorthand(ctx context.Context, input string) <-chan str
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOpenAIShorthand", encoded)
 	if err != nil {
 		close(channel)
@@ -10152,7 +12273,20 @@ func (*stream) TestOpenAIShorthand(ctx context.Context, input string) <-chan str
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10185,7 +12319,7 @@ func TestOpenAIWithFinishReasonError(ctx context.Context, input string) (*string
 	return &casted, nil
 }
 
-func (*stream) TestOpenAIWithFinishReasonError(ctx context.Context, input string) <-chan string {
+func (*stream) TestOpenAIWithFinishReasonError(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -10193,7 +12327,7 @@ func (*stream) TestOpenAIWithFinishReasonError(ctx context.Context, input string
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOpenAIWithFinishReasonError", encoded)
 	if err != nil {
 		close(channel)
@@ -10214,7 +12348,20 @@ func (*stream) TestOpenAIWithFinishReasonError(ctx context.Context, input string
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10247,7 +12394,7 @@ func TestOpenAIWithMaxTokens(ctx context.Context, input string) (*string, error)
 	return &casted, nil
 }
 
-func (*stream) TestOpenAIWithMaxTokens(ctx context.Context, input string) <-chan string {
+func (*stream) TestOpenAIWithMaxTokens(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -10255,7 +12402,7 @@ func (*stream) TestOpenAIWithMaxTokens(ctx context.Context, input string) <-chan
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOpenAIWithMaxTokens", encoded)
 	if err != nil {
 		close(channel)
@@ -10276,7 +12423,20 @@ func (*stream) TestOpenAIWithMaxTokens(ctx context.Context, input string) <-chan
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10309,7 +12469,7 @@ func TestOpenAIWithNullMaxTokens(ctx context.Context, input string) (*string, er
 	return &casted, nil
 }
 
-func (*stream) TestOpenAIWithNullMaxTokens(ctx context.Context, input string) <-chan string {
+func (*stream) TestOpenAIWithNullMaxTokens(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -10317,7 +12477,7 @@ func (*stream) TestOpenAIWithNullMaxTokens(ctx context.Context, input string) <-
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOpenAIWithNullMaxTokens", encoded)
 	if err != nil {
 		close(channel)
@@ -10338,7 +12498,20 @@ func (*stream) TestOpenAIWithNullMaxTokens(ctx context.Context, input string) <-
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10371,7 +12544,7 @@ func TestOpenRouterMistralSmall3_1_24b(ctx context.Context, input string) (*stri
 	return &casted, nil
 }
 
-func (*stream) TestOpenRouterMistralSmall3_1_24b(ctx context.Context, input string) <-chan string {
+func (*stream) TestOpenRouterMistralSmall3_1_24b(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -10379,7 +12552,7 @@ func (*stream) TestOpenRouterMistralSmall3_1_24b(ctx context.Context, input stri
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestOpenRouterMistralSmall3_1_24b", encoded)
 	if err != nil {
 		close(channel)
@@ -10400,7 +12573,20 @@ func (*stream) TestOpenRouterMistralSmall3_1_24b(ctx context.Context, input stri
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10433,7 +12619,7 @@ func TestRetryConstant(ctx context.Context) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestRetryConstant(ctx context.Context) <-chan string {
+func (*stream) TestRetryConstant(ctx context.Context) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{},
 	}
@@ -10441,7 +12627,7 @@ func (*stream) TestRetryConstant(ctx context.Context) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestRetryConstant", encoded)
 	if err != nil {
 		close(channel)
@@ -10462,7 +12648,20 @@ func (*stream) TestRetryConstant(ctx context.Context) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10495,7 +12694,7 @@ func TestRetryExponential(ctx context.Context) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestRetryExponential(ctx context.Context) <-chan string {
+func (*stream) TestRetryExponential(ctx context.Context) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{},
 	}
@@ -10503,7 +12702,7 @@ func (*stream) TestRetryExponential(ctx context.Context) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestRetryExponential", encoded)
 	if err != nil {
 		close(channel)
@@ -10524,7 +12723,20 @@ func (*stream) TestRetryExponential(ctx context.Context) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10557,7 +12769,7 @@ func TestRoundRobinStrategy(ctx context.Context, input string) (*string, error) 
 	return &casted, nil
 }
 
-func (*stream) TestRoundRobinStrategy(ctx context.Context, input string) <-chan string {
+func (*stream) TestRoundRobinStrategy(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -10565,7 +12777,7 @@ func (*stream) TestRoundRobinStrategy(ctx context.Context, input string) <-chan 
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestRoundRobinStrategy", encoded)
 	if err != nil {
 		close(channel)
@@ -10586,7 +12798,20 @@ func (*stream) TestRoundRobinStrategy(ctx context.Context, input string) <-chan 
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10619,7 +12844,7 @@ func TestSingleFallbackClient(ctx context.Context) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestSingleFallbackClient(ctx context.Context) <-chan string {
+func (*stream) TestSingleFallbackClient(ctx context.Context) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{},
 	}
@@ -10627,7 +12852,7 @@ func (*stream) TestSingleFallbackClient(ctx context.Context) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestSingleFallbackClient", encoded)
 	if err != nil {
 		close(channel)
@@ -10648,7 +12873,20 @@ func (*stream) TestSingleFallbackClient(ctx context.Context) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10681,7 +12919,7 @@ func TestThinking(ctx context.Context, input string) (*types.CustomStory, error)
 	return &casted, nil
 }
 
-func (*stream) TestThinking(ctx context.Context, input string) <-chan types.CustomStory {
+func (*stream) TestThinking(ctx context.Context, input string) <-chan StreamValue[types.CustomStory, stream_types.CustomStory] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -10689,7 +12927,7 @@ func (*stream) TestThinking(ctx context.Context, input string) <-chan types.Cust
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.CustomStory)
+	channel := make(chan StreamValue[types.CustomStory, stream_types.CustomStory])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestThinking", encoded)
 	if err != nil {
 		close(channel)
@@ -10710,7 +12948,20 @@ func (*stream) TestThinking(ctx context.Context, input string) <-chan types.Cust
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.CustomStory)
+				if result.HasData {
+					data := (*result.Data).(types.CustomStory)
+					channel <- StreamValue[types.CustomStory, stream_types.CustomStory]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.CustomStory)
+					channel <- StreamValue[types.CustomStory, stream_types.CustomStory]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10743,7 +12994,7 @@ func TestUniverseQuestion(ctx context.Context, question types.UniverseQuestionIn
 	return &casted, nil
 }
 
-func (*stream) TestUniverseQuestion(ctx context.Context, question types.UniverseQuestionInput) <-chan types.UniverseQuestion {
+func (*stream) TestUniverseQuestion(ctx context.Context, question types.UniverseQuestionInput) <-chan StreamValue[types.UniverseQuestion, stream_types.UniverseQuestion] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"question": question},
 	}
@@ -10751,7 +13002,7 @@ func (*stream) TestUniverseQuestion(ctx context.Context, question types.Universe
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.UniverseQuestion)
+	channel := make(chan StreamValue[types.UniverseQuestion, stream_types.UniverseQuestion])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestUniverseQuestion", encoded)
 	if err != nil {
 		close(channel)
@@ -10772,7 +13023,20 @@ func (*stream) TestUniverseQuestion(ctx context.Context, question types.Universe
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.UniverseQuestion)
+				if result.HasData {
+					data := (*result.Data).(types.UniverseQuestion)
+					channel <- StreamValue[types.UniverseQuestion, stream_types.UniverseQuestion]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.UniverseQuestion)
+					channel <- StreamValue[types.UniverseQuestion, stream_types.UniverseQuestion]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10805,7 +13069,7 @@ func TestVertex(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestVertex(ctx context.Context, input string) <-chan string {
+func (*stream) TestVertex(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -10813,7 +13077,7 @@ func (*stream) TestVertex(ctx context.Context, input string) <-chan string {
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestVertex", encoded)
 	if err != nil {
 		close(channel)
@@ -10834,7 +13098,20 @@ func (*stream) TestVertex(ctx context.Context, input string) <-chan string {
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10867,7 +13144,7 @@ func TestVertexClaude(ctx context.Context, input string) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestVertexClaude(ctx context.Context, input string) <-chan string {
+func (*stream) TestVertexClaude(ctx context.Context, input string) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -10875,7 +13152,7 @@ func (*stream) TestVertexClaude(ctx context.Context, input string) <-chan string
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestVertexClaude", encoded)
 	if err != nil {
 		close(channel)
@@ -10896,7 +13173,20 @@ func (*stream) TestVertexClaude(ctx context.Context, input string) <-chan string
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10929,7 +13219,7 @@ func TestVertexWithSystemInstructions(ctx context.Context) (*string, error) {
 	return &casted, nil
 }
 
-func (*stream) TestVertexWithSystemInstructions(ctx context.Context) <-chan string {
+func (*stream) TestVertexWithSystemInstructions(ctx context.Context) <-chan StreamValue[string, string] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{},
 	}
@@ -10937,7 +13227,7 @@ func (*stream) TestVertexWithSystemInstructions(ctx context.Context) <-chan stri
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan string)
+	channel := make(chan StreamValue[string, string])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "TestVertexWithSystemInstructions", encoded)
 	if err != nil {
 		close(channel)
@@ -10958,7 +13248,20 @@ func (*stream) TestVertexWithSystemInstructions(ctx context.Context) <-chan stri
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(string)
+				if result.HasData {
+					data := (*result.Data).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(string)
+					channel <- StreamValue[string, string]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -10991,7 +13294,7 @@ func UnionTest_Function(ctx context.Context, input types.Union__string__bool) (*
 	return &casted, nil
 }
 
-func (*stream) UnionTest_Function(ctx context.Context, input types.Union__string__bool) <-chan types.UnionTest_ReturnType {
+func (*stream) UnionTest_Function(ctx context.Context, input types.Union__string__bool) <-chan StreamValue[types.UnionTest_ReturnType, stream_types.UnionTest_ReturnType] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"input": input},
 	}
@@ -10999,7 +13302,7 @@ func (*stream) UnionTest_Function(ctx context.Context, input types.Union__string
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan types.UnionTest_ReturnType)
+	channel := make(chan StreamValue[types.UnionTest_ReturnType, stream_types.UnionTest_ReturnType])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "UnionTest_Function", encoded)
 	if err != nil {
 		close(channel)
@@ -11020,7 +13323,20 @@ func (*stream) UnionTest_Function(ctx context.Context, input types.Union__string
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(types.UnionTest_ReturnType)
+				if result.HasData {
+					data := (*result.Data).(types.UnionTest_ReturnType)
+					channel <- StreamValue[types.UnionTest_ReturnType, stream_types.UnionTest_ReturnType]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(stream_types.UnionTest_ReturnType)
+					channel <- StreamValue[types.UnionTest_ReturnType, stream_types.UnionTest_ReturnType]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -11053,7 +13369,7 @@ func UseBlockConstraint(ctx context.Context, inp types.BlockConstraintForParam) 
 	return &casted, nil
 }
 
-func (*stream) UseBlockConstraint(ctx context.Context, inp types.BlockConstraintForParam) <-chan int64 {
+func (*stream) UseBlockConstraint(ctx context.Context, inp types.BlockConstraintForParam) <-chan StreamValue[int64, int64] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"inp": inp},
 	}
@@ -11061,7 +13377,7 @@ func (*stream) UseBlockConstraint(ctx context.Context, inp types.BlockConstraint
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan int64)
+	channel := make(chan StreamValue[int64, int64])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "UseBlockConstraint", encoded)
 	if err != nil {
 		close(channel)
@@ -11082,7 +13398,20 @@ func (*stream) UseBlockConstraint(ctx context.Context, inp types.BlockConstraint
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(int64)
+				if result.HasData {
+					data := (*result.Data).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -11115,7 +13444,7 @@ func UseMalformedConstraints(ctx context.Context, a types.MalformedConstraints2)
 	return &casted, nil
 }
 
-func (*stream) UseMalformedConstraints(ctx context.Context, a types.MalformedConstraints2) <-chan int64 {
+func (*stream) UseMalformedConstraints(ctx context.Context, a types.MalformedConstraints2) <-chan StreamValue[int64, int64] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"a": a},
 	}
@@ -11123,7 +13452,7 @@ func (*stream) UseMalformedConstraints(ctx context.Context, a types.MalformedCon
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan int64)
+	channel := make(chan StreamValue[int64, int64])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "UseMalformedConstraints", encoded)
 	if err != nil {
 		close(channel)
@@ -11144,7 +13473,20 @@ func (*stream) UseMalformedConstraints(ctx context.Context, a types.MalformedCon
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(int64)
+				if result.HasData {
+					data := (*result.Data).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()
@@ -11177,7 +13519,7 @@ func UseNestedBlockConstraint(ctx context.Context, inp types.NestedBlockConstrai
 	return &casted, nil
 }
 
-func (*stream) UseNestedBlockConstraint(ctx context.Context, inp types.NestedBlockConstraintForParam) <-chan int64 {
+func (*stream) UseNestedBlockConstraint(ctx context.Context, inp types.NestedBlockConstraintForParam) <-chan StreamValue[int64, int64] {
 	args := baml.BamlFunctionArguments{
 		Kwargs: map[string]any{"inp": inp},
 	}
@@ -11185,7 +13527,7 @@ func (*stream) UseNestedBlockConstraint(ctx context.Context, inp types.NestedBlo
 	if err != nil {
 		panic(err)
 	}
-	channel := make(chan int64)
+	channel := make(chan StreamValue[int64, int64])
 	raw, err := bamlRuntime.CallFunctionStream(ctx, "UseNestedBlockConstraint", encoded)
 	if err != nil {
 		close(channel)
@@ -11206,7 +13548,20 @@ func (*stream) UseNestedBlockConstraint(ctx context.Context, inp types.NestedBlo
 					close(channel)
 					return
 				}
-				channel <- (*result.Data).(int64)
+				if result.HasData {
+					data := (*result.Data).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:  true,
+						as_final: &data,
+					}
+				} else {
+					data := (*result.StreamData).(int64)
+					channel <- StreamValue[int64, int64]{
+						IsFinal:   false,
+						as_final:  nil,
+						as_stream: &data,
+					}
+				}
 			}
 		}
 	}()

@@ -422,7 +422,7 @@ export namespace partial_types {
     }
     
     export interface Quantity {
-        amount?: ((number | null) | (number | null) | null)
+        amount: number
         unit: ((string | null) | null)
     }
     
